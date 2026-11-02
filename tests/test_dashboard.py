@@ -76,7 +76,7 @@ def test_ab_metric_is_allowlisted(dashboard_modules):
     """An unknown metric is rejected before it reaches the query (SEC-3)."""
     charts, queries = dashboard_modules
     with pytest.raises(ValueError, match="unknown metric"):
-        queries.ab_summary("retention_7'; DROP TABLE raw.orders; --")
+        queries.ab_summary("conversion'; DROP TABLE raw.orders; --")
 
 
 def test_date_range_comes_from_the_data(dashboard_modules):

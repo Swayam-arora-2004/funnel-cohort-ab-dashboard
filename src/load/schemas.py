@@ -40,7 +40,7 @@ class CsvContract:
     expected_min_rows: int = 1
 
 
-# Olist files live in data/raw/olist/, Cookie Cats in data/raw/cookie_cats/ -- each dataset in
+# Olist files live in data/raw/olist/ and the experiment in data/raw/criteo/ -- each dataset in
 # its own directory so it is always obvious which file came from which source.
 CSV_CONTRACTS: tuple[CsvContract, ...] = (
     CsvContract(
