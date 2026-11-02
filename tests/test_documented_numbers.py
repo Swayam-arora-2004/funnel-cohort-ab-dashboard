@@ -4,7 +4,7 @@ This is what makes DECISIONS D-009 -- "never invent a result" -- enforceable rat
 aspirational. If a view changes, or the data is reloaded differently, the documentation stops
 matching reality and this test says so, naming the figure.
 
-The DOCUMENTED column below is what docs/QUERIES.md, docs/DATA.md and ai-context/PROGRESS.md
+The DOCUMENTED column below is what docs/QUERIES.md and docs/DATA.md
 claim today. The LIVE column is recomputed from the database when the test runs.
 
 Two things this test taught, both kept as comments where they apply:

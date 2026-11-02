@@ -103,7 +103,7 @@ disagree. Python does only what SQL cannot: the statistical test.
 **The dashboard connects as `dashboard_ro`** — `SELECT` on `analytics`, and *no privileges at
 all* on `raw`. A view runs with its owner's privileges, so it reads `raw` on the caller's
 behalf while the app cannot touch `raw` directly. This is asserted by tests, and it caught a
-real mistake during development (see `ai-context/DECISIONS.md` D-018).
+real mistake during development (see `docs/DECISIONS.md` D-018).
 
 ---
 
@@ -151,7 +151,7 @@ attribution and neither permits commercial use.
 > mobile-game A/B test, for which Kaggle reports **no licence at all**. It was replaced with
 > the Criteo data specifically so the project has a *verifiable* licence chain rather than one
 > dataset described as "unknown" — both licences were checked directly, on Criteo's own page
-> and in the official Hugging Face repository's metadata. (`ai-context/DECISIONS.md` D-023.)
+> and in the official Hugging Face repository's metadata. (`docs/DECISIONS.md` D-023.)
 
 > **Two measured corrections to the publisher's own description.** Criteo's page says the
 > dataset has "25M rows"; the v2.1 file actually has **13,979,592**. And Criteo's own download
@@ -166,7 +166,7 @@ would be fabricating results. The five stages are real order-lifecycle timestamp
 
 ## Things this project got wrong, and fixed
 
-Kept because the fixes are the interesting part. Full write-ups in `ai-context/DECISIONS.md`.
+Kept because the fixes are the interesting part. Full write-ups in `docs/DECISIONS.md`.
 
 | What | Why it mattered |
 |---|---|
@@ -203,8 +203,8 @@ Top 10. In short:
 ## Repo map
 
 ```
-ai-context/   ARCHITECTURE.md · DECISIONS.md (24 entries) · PROGRESS.md
-docs/         SRS.md · TECH_SPECS.md · DATA.md · QUERIES.md · BI_HANDOFF.md
+docs/         ARCHITECTURE.md · DECISIONS.md (24 entries) · SRS.md · TECH_SPECS.md
+              DATA.md · QUERIES.md · BI_HANDOFF.md · RESUME_BULLETS.md
 sql/ddl/      schemas, least-privilege roles, typed tables, commented indexes
 sql/views/    12 views, each with a COMMENT ON VIEW stating its business question
 src/          config · db · load · analysis · export
