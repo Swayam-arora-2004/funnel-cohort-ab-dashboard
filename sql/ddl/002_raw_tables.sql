@@ -95,16 +95,8 @@ CREATE TABLE IF NOT EXISTS raw.products (
 );
 COMMENT ON TABLE raw.products IS 'Products, kept only for product_category_name used by the ranked-categories view.';
 
--- ============================================================== Cookie Cats A/B test
-CREATE TABLE IF NOT EXISTS raw.ab_cookie_cats (
-    userid         bigint PRIMARY KEY,
-    version        text    NOT NULL,   -- 'gate_30' or 'gate_40' (the randomised variant)
-    sum_gamerounds integer NOT NULL,
-    retention_1    boolean NOT NULL,   -- came back 1 day after install
-    retention_7    boolean NOT NULL,   -- came back 7 days after install
-    CONSTRAINT ab_version_known CHECK (version IN ('gate_30', 'gate_40'))
-);
-COMMENT ON TABLE raw.ab_cookie_cats IS 'Cookie Cats mobile-game A/B test: a REAL published experiment (CC0), not simulated (FR-15). Each row is one randomised player.';
+-- The A/B experiment table lives in 004_ab_criteo.sql, because it comes from a different
+-- source with a different licence and is the one piece a reader may want to swap.
 
 -- Foreign keys are deliberately NOT declared here (DECISIONS D-011). The raw layer's job is
 -- to accept the source data exactly as published; declaring an FK would abort the load on the

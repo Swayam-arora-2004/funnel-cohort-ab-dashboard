@@ -34,8 +34,9 @@ BASELINE = "#c3c2b7"
 LABEL_ON_FILL = "#ffffff"
 
 # ---------------------------------------------------------------- categorical
-# Assigned in this order, never cycled. Only the first two are used (gate_30, gate_40);
-# the rest are listed so a future series takes the next slot rather than inventing a hue.
+# Assigned in this order, never cycled. Only the first two are used (the A/B control and
+# treatment arms); the rest are listed so a future series takes the next slot rather than
+# inventing a hue.
 SERIES: tuple[str, ...] = (
     "#2a78d6",  # 1 blue
     "#eb6834",  # 2 orange

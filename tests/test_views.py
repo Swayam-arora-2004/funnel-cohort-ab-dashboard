@@ -236,7 +236,7 @@ def test_category_rank_starts_at_one_each_month(ro_engine):
 
 
 def test_ab_summary_has_four_rows(ro_engine):
-    """Two metrics x two variants. Both metrics are reported so neither can be cherry-picked."""
+    """Two metrics x two arms. Both metrics are reported so neither can be cherry-picked."""
     assert _scalar(ro_engine, "SELECT count(*) FROM analytics.v_ab_summary") == 4
 
 
@@ -246,14 +246,36 @@ def test_ab_conversions_never_exceed_users(ro_engine):
 
 
 def test_ab_user_totals_match_the_source_table(ro_engine):
-    """Per metric, the two arms must account for every player exactly once."""
+    """Per metric, the two arms must account for every user exactly once.
+
+    The expected total is read from the source table rather than hardcoded, so this survives a
+    dataset swap -- which is exactly what happened when the experiment changed (D-023).
+    """
+    expected = _scalar(ro_engine, "SELECT sum(users) / 2 FROM analytics.v_ab_summary")
     rows = _rows(
         ro_engine,
         "SELECT metric, sum(users) AS total FROM analytics.v_ab_summary GROUP BY metric",
     )
     assert len(rows) == 2
     for row in rows:
-        assert row.total == 90_189, f"{row.metric} covers {row.total} users, expected 90,189"
+        assert row.total == expected, f"{row.metric} covers {row.total}, expected {expected}"
+
+
+def test_ab_splits_on_random_assignment_not_exposure(ro_engine):
+    """The control arm must be the randomly WITHHELD group, not the unexposed group.
+
+    Splitting on `exposure` would compare people who were shown an ad against people who were
+    not -- but exposure is a CONSEQUENCE of the treatment, so that comparison is self-selected
+    and not causal. This asserts the view uses the assignment: the withheld arm is ~15% of
+    users, whereas the unexposed group is a different and much larger share.
+    """
+    control_share = _scalar(
+        ro_engine,
+        "SELECT round(100.0 * max(users) FILTER (WHERE is_control) "
+        "/ sum(users) FILTER (WHERE metric = 'conversion'), 2) "
+        "FROM analytics.v_ab_summary WHERE metric = 'conversion'",
+    )
+    assert 14.0 < float(control_share) < 16.0, f"control arm is {control_share}% of users"
 
 
 def test_exactly_one_control_arm_per_metric(ro_engine):

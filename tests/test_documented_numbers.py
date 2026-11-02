@@ -24,6 +24,14 @@ from src.db import engine_ro, engine_rw, fetch_df
 pytestmark = pytest.mark.db
 
 
+def _exponent(value: float) -> int:
+    """Base-10 exponent of a very small number, so a p-value can be pinned without pinning
+    all 15 of its digits."""
+    import math
+
+    return math.floor(math.log10(value))
+
+
 def _tolerance_for(fmt: str) -> float:
     """Half a unit of the last decimal place the docs actually print.
 
@@ -102,25 +110,31 @@ def test_every_documented_number_still_holds(rw_engine, ro_engine):
 
     # ---------------------------------------------------------------- A/B (QUERIES.md 10)
     res = ab_report.run_all()
-    d1, d7 = res["retention_1"], res["retention_7"]
-    check("A/B gate_30 day-1 (%)", 44.819, d1.rate_a * 100, "{:.3f}")
-    check("A/B gate_40 day-1 (%)", 44.228, d1.rate_b * 100, "{:.3f}")
-    check("A/B gate_30 day-7 (%)", 19.020, d7.rate_a * 100, "{:.3f}")
-    check("A/B gate_40 day-7 (%)", 18.200, d7.rate_b * 100, "{:.3f}")
-    check("A/B day-1 difference (pp)", -0.591, d1.diff_pp, "{:+.3f}")
-    check("A/B day-7 difference (pp)", -0.820, d7.diff_pp, "{:+.3f}")
-    check("A/B day-1 p-value", 0.074410, d1.p_value, "{:.6f}")
-    check("A/B day-7 p-value", 0.001554, d7.p_value, "{:.6f}")
-    check("A/B day-1 CI low (pp)", -1.239, d1.ci_low_pp, "{:+.3f}")
-    check("A/B day-1 CI high (pp)", 0.058, d1.ci_high_pp, "{:+.3f}")
-    check("A/B day-7 CI low (pp)", -1.328, d7.ci_low_pp, "{:+.3f}")
-    check("A/B day-7 CI high (pp)", -0.312, d7.ci_high_pp, "{:+.3f}")
-    check("A/B day-1 MDE (pp)", 0.927, d1.mde_pp, "{:.3f}")
-    check("A/B day-7 MDE (pp)", 0.726, d7.mde_pp, "{:.3f}")
-    check("A/B day-1 observed power (%)", 43.0, d1.observed_power * 100, "{:.1f}")
-    check("A/B day-7 observed power (%)", 88.6, d7.observed_power * 100, "{:.1f}")
-    check("A/B arm gate_30 n", 44700, d7.n_a, "{:,}")
-    check("A/B arm gate_40 n", 45489, d7.n_b, "{:,}")
+    visit, conv = res["visit"], res["conversion"]
+    check("A/B control visit rate (%)", 3.8201, visit.rate_a * 100, "{:.4f}")
+    check("A/B treatment visit rate (%)", 4.8543, visit.rate_b * 100, "{:.4f}")
+    check("A/B control conversion rate (%)", 0.1938, conv.rate_a * 100, "{:.4f}")
+    check("A/B treatment conversion rate (%)", 0.3089, conv.rate_b * 100, "{:.4f}")
+    check("A/B visit lift (pp)", 1.0342, visit.diff_pp, "{:+.4f}")
+    check("A/B conversion lift (pp)", 0.1152, conv.diff_pp, "{:+.4f}")
+    check("A/B visit relative change (%)", 27.07, visit.relative_change_pct, "{:+.2f}")
+    check("A/B conversion relative change (%)", 59.45, conv.relative_change_pct, "{:+.2f}")
+    check("A/B visit z statistic", 65.2474, visit.z_stat, "{:+.4f}")
+    check("A/B conversion z statistic", 28.5165, conv.z_stat, "{:+.4f}")
+    check("A/B visit CI low (pp)", 1.0056, visit.ci_low_pp, "{:+.4f}")
+    check("A/B visit CI high (pp)", 1.0629, visit.ci_high_pp, "{:+.4f}")
+    check("A/B conversion CI low (pp)", 0.1085, conv.ci_low_pp, "{:+.4f}")
+    check("A/B conversion CI high (pp)", 0.1219, conv.ci_high_pp, "{:+.4f}")
+    check("A/B visit MDE (pp)", 0.0410, visit.mde_pp, "{:.4f}")
+    check("A/B conversion MDE (pp)", 0.0096, conv.mde_pp, "{:.4f}")
+    check("A/B control arm n", 2096937, conv.n_a, "{:,}")
+    check("A/B treatment arm n", 11882655, conv.n_b, "{:,}")
+    check("A/B control conversions", 4063, conv.conv_a, "{:,}")
+    check("A/B treatment conversions", 36711, conv.conv_b, "{:,}")
+    # The conversion p-value is representable; the visit one underflows float64 entirely
+    # (z = 65.2), which is why _format_p prints a BOUND rather than claiming p = 0.
+    check("A/B conversion p-value exponent", -179, _exponent(conv.p_value), "{:d}")
+    assert visit.p_value == 0.0, "visit p-value is expected to underflow float64"
 
     # ---------------------------------------------------------------- data quality (DATA.md)
     dq = qraw(
@@ -132,7 +146,7 @@ def test_every_documented_number_still_holds(rw_engine, ro_engine):
           (SELECT count(*) FROM raw.order_payments) AS pays,
           (SELECT count(*) FROM raw.order_reviews)  AS reviews,
           (SELECT count(*) FROM raw.products)       AS products,
-          (SELECT count(*) FROM raw.ab_cookie_cats) AS ab,
+          (SELECT count(*) FROM raw.ab_criteo_uplift) AS ab,
           (SELECT count(DISTINCT customer_id) FROM raw.customers)        AS cid,
           (SELECT count(DISTINCT customer_unique_id) FROM raw.customers) AS cuid
         """
@@ -144,14 +158,14 @@ def test_every_documented_number_still_holds(rw_engine, ro_engine):
         ("rows raw.order_payments", 103886, dq["pays"]),
         ("rows raw.order_reviews", 99224, dq["reviews"]),
         ("rows raw.products", 32951, dq["products"]),
-        ("rows cookie_cats", 90189, dq["ab"]),
+        ("rows criteo uplift", 13979592, dq["ab"]),
         ("distinct customer_id", 99441, dq["cid"]),
         ("distinct customer_unique_id", 96096, dq["cuid"]),
     ]:
         check(lbl, doc, int(live), "{:,}")
     check(
         "total rows loaded",
-        637782,
+        14527185,
         int(
             dq["orders"]
             + dq["customers"]
@@ -181,10 +195,17 @@ def test_every_documented_number_still_holds(rw_engine, ro_engine):
     check("max genuine MoM growth (%)", 158.19, float(mom["m"]), "{:.2f}")
 
     ab_split = qraw(
-        "SELECT version, count(*) c FROM raw.ab_cookie_cats GROUP BY version ORDER BY version"
+        "SELECT treatment, count(*) c FROM raw.ab_criteo_uplift "
+        "GROUP BY treatment ORDER BY treatment"
     )
-    check("cookie cats gate_30", 44700, int(ab_split.iloc[0]["c"]), "{:,}")
-    check("cookie cats gate_40", 45489, int(ab_split.iloc[1]["c"]), "{:,}")
+    check("criteo withheld (control)", 2096937, int(ab_split.iloc[0]["c"]), "{:,}")
+    check("criteo targeted (treatment)", 11882655, int(ab_split.iloc[1]["c"]), "{:,}")
+    check(
+        "criteo control share (%)",
+        15.00,
+        100 * int(ab_split.iloc[0]["c"]) / 13979592,
+        "{:.2f}",
+    )
 
     dates = qraw(
         "SELECT min(order_purchase_timestamp)::date a, max(order_purchase_timestamp)::date b "
@@ -200,4 +221,4 @@ def test_every_documented_number_still_holds(rw_engine, ro_engine):
         f"{len(mismatches)} of {len(rows)} documented figures no longer match the data:\n  "
         + "\n  ".join(mismatches)
     )
-    assert len(rows) >= 56, "figures were removed from this check without being removed from docs"
+    assert len(rows) >= 60, "figures were removed from this check without being removed from docs"

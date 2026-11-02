@@ -18,7 +18,7 @@ database and fails if any of them stops matching.
 | Where do orders drop out of the fulfilment pipeline? | Home → Fulfilment funnel | Olist |
 | Do customers come back, and for how long? | Cohorts | Olist |
 | Is revenue growth accelerating? | Home → Revenue over time | Olist |
-| Did the experiment's change work? | A/B Test | Cookie Cats |
+| Does advertising actually *cause* conversions? | A/B Test | Criteo |
 | So what should we actually do? | Insights | both |
 
 ---
@@ -46,26 +46,34 @@ cohorts of 1,000+ customers runs **0.11%–0.72%**. Total merchandise revenue
 **R$ 13,496,408.43** across **98,205** orders, **AOV R$ 137.43**.
 *(`analytics.v_cohort_retention`, `v_repeat_purchase_summary`, `v_revenue_by_month`)*
 
-### The A/B test says do not ship
+### Advertising does cause conversions — and the effect is small
 
-| | Day-1 retention | Day-7 retention |
+A randomised **incrementality test**: 15% of users were **withheld** from ad targeting at
+random, which makes the comparison causal rather than correlational.
+
+| | Site visit | Conversion |
 |---|---|---|
-| `gate_30` (control) | 44.819% | 19.020% |
-| `gate_40` (variant) | 44.228% | 18.200% |
-| Difference | −0.591 pp | **−0.820 pp** |
-| p-value | 0.074410 | **0.001554** |
-| 95% CI on the difference | [−1.239, **+0.058**] pp | [−1.328, **−0.312**] pp |
-| Min detectable effect (80% power) | 0.927 pp | 0.726 pp |
-| Observed power | **43.0%** | 88.6% |
+| Control — randomly withheld (2,096,937 users) | 3.8201% | 0.1938% |
+| Treatment — targeted (11,882,655 users) | 4.8543% | 0.3089% |
+| Absolute lift | **+1.0342 pp** | **+0.1152 pp** |
+| Relative change | +27.07% | **+59.45%** |
+| p-value | **< 1e-300** | **7.3e-179** |
+| 95% CI on the lift | [+1.0056, +1.0629] pp | **[+0.1085, +0.1219] pp** |
+| Min detectable effect (80% power) | 0.0410 pp | **0.0096 pp** |
 
-**Do not ship `gate_40`.** Day-7 retention is 0.82 pp worse, the whole 95% interval sits below
-zero, and the result survives Bonferroni correction for having tested two metrics
-(0.00155 < 0.025).
+**The honest reading is two-sided.** The effect is unambiguously **real** — across 14 million
+users the interval is tight and nowhere near zero, and both outcomes clear the
+Bonferroni-corrected threshold for having tested two. But it is **small**: about one extra
+conversion per 870 targeted users. Whether that pays depends on margin per conversion against
+cost per impression, which this dataset does not contain. The next step is a break-even
+calculation, not "advertising works, spend more".
 
-**Day-1 is inconclusive, which is a different claim.** Observed power was only 43% — this test
-would have missed a real effect of that size more often than it found one — and the observed
-gap (0.59 pp) is smaller than the 0.93 pp minimum the sample could reliably detect. The honest
-reading is *"we did not detect a difference"*, not *"there is no difference"*.
+**The methodological point.** The data also records whether each user was actually *shown* an
+ad. Splitting on that is the tempting mistake: being shown an ad is a *consequence* of the
+treatment, and users who get shown ads are systematically more active, so that comparison is
+self-selected and not causal. This is an **intention-to-treat** analysis — it splits on the
+random assignment — and a test asserts it stays that way.
+
 *(`python -m src.analysis.ab_report`)*
 
 ![A/B readout](screenshots/03-ab-test.png)
@@ -77,9 +85,9 @@ reading is *"we did not detect a difference"*, not *"there is no difference"*.
 ```mermaid
 flowchart TD
     A1["Olist e-commerce CSVs<br/>CC BY-NC-SA 4.0"] --> B["data/raw/ (git-ignored)"]
-    A2["Cookie Cats A/B CSV<br/>real published experiment"] --> B
+    A2["Criteo Uplift CSV<br/>CC BY-NC-SA 4.0 · real RCT"] --> B
     B --> C["src/load/load_raw.py<br/>contracts + chunked COPY, idempotent"]
-    C --> D[("PostgreSQL 16 · schema raw<br/>7 typed tables, 8 commented indexes")]
+    C --> D[("PostgreSQL 16 · schema raw<br/>7 typed tables, 9 commented indexes")]
     D --> E["schema analytics · 12 views<br/>CTEs + window functions"]
     E --> F["src/analysis/ab_test.py<br/>PURE: z-test, CI, MDE, power"]
     E --> G["Streamlit + Plotly<br/>connects as dashboard_ro"]
@@ -110,15 +118,16 @@ cp .env.example .env            # then set a password for each CHANGE_ME
 
 python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
 
-# Download the data (42 MB) -- see docs/DATA.md for licences
-mkdir -p data/raw/olist data/raw/cookie_cats
+# Download the data (42 MB + 311 MB) -- see docs/DATA.md for licences
+mkdir -p data/raw/olist data/raw/criteo
 kaggle datasets download -d olistbr/brazilian-ecommerce       -p data/raw/olist        --unzip
-kaggle datasets download -d yufengsui/mobile-games-ab-testing -p data/raw/cookie_cats  --unzip
+curl -L -o data/raw/criteo/criteo-research-uplift-v2.1.csv.gz \
+  "https://huggingface.co/datasets/criteo/criteo-uplift/resolve/main/criteo-research-uplift-v2.1.csv.gz"
 
 make db-up db-init              # PostgreSQL 16 + schemas + roles + tables + indexes
-make load                       # 637,782 rows in 5.6s
+make load                       # 14,527,185 rows in 52s
 make views                      # 12 analytics views
-make test                       # 105 tests
+make test                       # 108 tests
 make app                        # http://localhost:8501
 ```
 
@@ -129,19 +138,25 @@ Other commands: `make export` (CSVs for Tableau), `make lint`, `make security`,
 
 ## The data
 
-| | Olist Brazilian E-Commerce | Cookie Cats A/B test |
+| | Olist Brazilian E-Commerce | Criteo Uplift v2.1 |
 |---|---|---|
 | Used for | funnel, cohorts, revenue | the experiment |
-| Licence | **CC BY-NC-SA 4.0** (attribution required, non-commercial) | **not specified** — see below |
-| Size | 99,441 orders, 2016-09 to 2018-10 | 90,189 randomised players |
+| Licence | **CC BY-NC-SA 4.0** | **CC BY-NC-SA 4.0** |
+| Size | 99,441 orders, 2016-09 to 2018-10 | 13,979,592 randomised users |
 
-Credit to **Olist** for publishing the e-commerce dataset.
+Credit to **Olist** and to **Criteo AI Lab** for publishing these datasets. Both require
+attribution and neither permits commercial use.
 
-> **Licence caveat, stated rather than papered over.** Kaggle reports **no licence** for the
-> Cookie Cats dataset. It is a genuine published experiment and this is non-commercial
-> portfolio use with attribution, but this project does **not** claim a specific licence for
-> it, because none was verifiable. An earlier draft recorded it as CC0; that was an unverified
-> assumption and was corrected (`ai-context/DECISIONS.md` D-011a).
+> **Why the experiment dataset was swapped.** An earlier version used the Cookie Cats
+> mobile-game A/B test, for which Kaggle reports **no licence at all**. It was replaced with
+> the Criteo data specifically so the project has a *verifiable* licence chain rather than one
+> dataset described as "unknown" — both licences were checked directly, on Criteo's own page
+> and in the official Hugging Face repository's metadata. (`ai-context/DECISIONS.md` D-023.)
+
+> **Two measured corrections to the publisher's own description.** Criteo's page says the
+> dataset has "25M rows"; the v2.1 file actually has **13,979,592**. And Criteo's own download
+> link is **dead** — the storage host no longer resolves — so `docs/DATA.md` gives the Hugging
+> Face URL instead. D-009 applies to a third party's claim about its own data too.
 
 **This is a fulfilment funnel, not an acquisition funnel.** Olist publishes no clickstream
 data, so "visit → signup → cart → purchase" is not derivable from it and inventing those stages
@@ -161,6 +176,8 @@ Kept because the fixes are the interesting part. Full write-ups in `ai-context/D
 | **The dashboard crashed with "permission denied for schema raw"** | A query reached into `raw` from the app. The fix was a new view, not a wider grant — the error was business logic in the wrong layer. (D-018) |
 | **A CSV formula-injection guard that did nothing** | It tested `dtype == object`, correct on pandas 2.x. On pandas 3.x text columns are `str`, so the guard silently no-op'd. A security guard with no test is a guard you only think you have. (`tests/test_export.py`) |
 | **Numbers truncated to "R$ 13…" at a 1280px window** | Built and screenshotted at 1500px. A truncated number is a wrong number. Layouts are now checked at 1100/1280/1440. (D-019) |
+| **A p-value printed as 0.000000** | With z = 65 the true value is ~1e-926, below float64's floor, so Python returns exactly `0.0`. Printing "p = 0" states something mathematically false — a p-value is always positive. It now prints the bound `< 1e-300`. |
+| **A dataset with an unverifiable licence** | The original A/B data had no licence on Kaggle. Swapped for one whose CC BY-NC-SA 4.0 licence was checked at source — and whose publisher's own row count and download link both turned out to be wrong. (D-023) |
 
 ---
 
@@ -186,13 +203,13 @@ Top 10. In short:
 ## Repo map
 
 ```
-ai-context/   ARCHITECTURE.md · DECISIONS.md (22 entries) · PROGRESS.md
+ai-context/   ARCHITECTURE.md · DECISIONS.md (24 entries) · PROGRESS.md
 docs/         SRS.md · TECH_SPECS.md · DATA.md · QUERIES.md · BI_HANDOFF.md
 sql/ddl/      schemas, least-privilege roles, typed tables, commented indexes
 sql/views/    12 views, each with a COMMENT ON VIEW stating its business question
 src/          config · db · load · analysis · export
 app/          Streamlit: Home, Cohorts, A/B Test, Insights
-tests/        105 tests
+tests/        108 tests
 ```
 
 Start with `docs/QUERIES.md` — it has every view's business question, its measured output, and

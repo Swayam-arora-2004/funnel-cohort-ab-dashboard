@@ -29,7 +29,7 @@ EXPECTED_ROWS = {
     "raw.order_payments": 103_886,
     "raw.order_reviews": 99_224,
     "raw.products": 32_951,
-    "raw.ab_cookie_cats": 90_189,
+    "raw.ab_criteo_uplift": 13_979_592,
 }
 
 
@@ -107,20 +107,40 @@ def test_no_negative_money(rw_engine):
     assert negative_payments == 0
 
 
-def test_cookie_cats_variants_are_balanced(rw_engine):
-    """Both A/B arms exist and are of similar size -- a basic randomisation sanity check.
+def test_criteo_randomisation_split_is_as_published(rw_engine):
+    """The withheld control arm must be ~15% of users, which is how Criteo ran the test.
 
-    If the split were wildly uneven it would suggest the data is not what it claims to be,
-    and the whole experiment readout would be untrustworthy.
+    This is a sanity check on the randomisation itself: if the split were not what the
+    publisher describes, the data is not what it claims to be and the whole readout would be
+    untrustworthy. Unlike a 50/50 test the arms here are deliberately uneven -- most users are
+    targeted, a random 15% are withheld -- which is normal for an incrementality test because
+    withholding advertising costs real revenue.
     """
     with rw_engine.connect() as conn:
-        rows = conn.execute(
-            text("SELECT version, count(*) FROM raw.ab_cookie_cats GROUP BY version")
-        ).all()
-    counts = dict(rows)
-    assert set(counts) == {"gate_30", "gate_40"}
-    smaller, larger = sorted(counts.values())
-    assert smaller / larger > 0.95, f"arms are unbalanced: {counts}"
+        control_pct = float(
+            conn.execute(
+                text(
+                    "SELECT round(100.0 * count(*) FILTER (WHERE NOT treatment) / count(*), 2) "
+                    "FROM raw.ab_criteo_uplift"
+                )
+            ).scalar_one()
+        )
+    assert 14.5 < control_pct < 15.5, f"control arm is {control_pct}% of users, expected ~15%"
+
+
+def test_criteo_has_no_identifier_column(rw_engine):
+    """The strongest form of SEC-6: there is no personal data in this source to exclude."""
+    with rw_engine.connect() as conn:
+        columns = {
+            row[0]
+            for row in conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'raw' AND table_name = 'ab_criteo_uplift'"
+                )
+            )
+        }
+    assert columns == {"treatment", "visit", "conversion", "exposure"}
 
 
 # --------------------------------------------------------------- data quality (D-011)

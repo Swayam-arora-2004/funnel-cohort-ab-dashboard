@@ -192,7 +192,7 @@ def render_revenue(start, end) -> None:
 st.title("Funnel, Cohort & A/B Analysis")
 st.caption(
     "**This page: Olist Brazilian E-Commerce** (real marketplace data, 2016-09 to 2018-10). "
-    "The A/B Test page uses a different dataset -- the Cookie Cats mobile-game experiment. "
+    "The A/B Test page uses a different dataset -- the Criteo Uplift advertising experiment. "
     "Each page names its source."
 )
 

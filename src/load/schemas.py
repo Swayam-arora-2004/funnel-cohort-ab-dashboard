@@ -30,6 +30,10 @@ class CsvContract:
     rename: dict[str, str] = field(default_factory=dict)
     # Columns the destination table generates itself (e.g. a bigserial surrogate key).
     generated_columns: tuple[str, ...] = ()
+    # Read ONLY the contract's columns from the file instead of reading everything and
+    # discarding the rest. For a 25-million-row source with 11 unused feature columns this is
+    # the difference between a few hundred MB of memory and several GB.
+    read_only_contract_columns: bool = False
     # Sanity bounds checked after load, as (column, minimum). Violations are counted and
     # reported, never silently dropped (SEC-3).
     non_negative: tuple[str, ...] = ()
@@ -136,23 +140,31 @@ CSV_CONTRACTS: tuple[CsvContract, ...] = (
         expected_min_rows=32_000,
     ),
     CsvContract(
-        filename="cookie_cats/cookie_cats.csv",
-        table="raw.ab_cookie_cats",
+        filename="criteo/criteo-research-uplift-v2.1.csv.gz",
+        table="raw.ab_criteo_uplift",
         dtypes={
-            "userid": "int64",
-            "version": "string",
-            "sum_gamerounds": "int64",
-            "retention_1": "boolean",
-            "retention_7": "boolean",
+            # The randomised assignment, then the two outcomes, then exposure.
+            # The source writes these as 0/1 integers, not TRUE/FALSE.
+            "treatment": "boolean",
+            "visit": "boolean",
+            "conversion": "boolean",
+            "exposure": "boolean",
         },
-        non_negative=("sum_gamerounds",),
-        expected_min_rows=90_000,
+        # The source also carries 11 anonymised features f0..f11. No numbered requirement needs
+        # them, and at 25M rows they would cost gigabytes for nothing (FR-4). Reading only the
+        # four contract columns keeps the load inside a few hundred MB of memory.
+        read_only_contract_columns=True,
+        expected_min_rows=13_900_000,
     ),
 )
 
-# Files present in the download that we deliberately do NOT load, with the reason.
-# Listed here so a reader can see the omission is a decision, not an oversight.
+# Files and columns present in the downloads that we deliberately do NOT load, with the
+# reason. Listed here so a reader can see each omission is a decision, not an oversight.
 INTENTIONALLY_NOT_LOADED: dict[str, str] = {
+    "criteo columns f0..f11": (
+        "11 anonymised features; no requirement needs them, and at 25M rows "
+        "they would cost gigabytes for nothing (FR-4)"
+    ),
     "olist/olist_geolocation_dataset.csv": "precise lat/long, personal-data risk, unused (SEC-6)",
     "olist/olist_sellers_dataset.csv": "no numbered requirement needs seller attributes",
     "olist/product_category_name_translation.csv": (

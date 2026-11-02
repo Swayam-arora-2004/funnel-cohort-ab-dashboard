@@ -225,10 +225,10 @@ def ab_comparison_chart(frame: pd.DataFrame, metric_label: str) -> go.Figure:
     ordered = frame.sort_values("is_control", ascending=False).reset_index(drop=True)
     figure = go.Figure()
     for i, row in ordered.iterrows():
-        role = "control" if row.is_control else "variant"
+        role = "control" if row.is_control else "treatment"
         figure.add_trace(
             go.Bar(
-                y=[f"{row.variant}  ({role})"],
+                y=[f"{row.variant}"],
                 x=[float(row.conversion_rate_pct)],
                 orientation="h",
                 marker={
@@ -236,7 +236,7 @@ def ab_comparison_chart(frame: pd.DataFrame, metric_label: str) -> go.Figure:
                     "line": {"color": pal.SURFACE, "width": 2},
                     "cornerradius": 4,
                 },
-                text=[f"{row.conversion_rate_pct:.3f}%"],
+                text=[f"{row.conversion_rate_pct:.4f}%"],
                 # INSIDE the bar, anchored to its end. An outside label is positioned in
                 # pixels, so at half width it ran past the axis and clipped to "44.228" --
                 # padding the data range only hid the problem at one window size. Inside, the
@@ -245,11 +245,11 @@ def ab_comparison_chart(frame: pd.DataFrame, metric_label: str) -> go.Figure:
                 textposition="inside",
                 insidetextanchor="end",
                 textfont={"color": pal.LABEL_ON_FILL, "size": 13},
-                name=f"{row.variant} ({role})",
+                name=f"{row.variant}",
                 hovertemplate=(
                     f"<b>{row.variant}</b> ({role})<br>"
-                    f"{row.converted:,} of {row.users:,} retained<br>"
-                    f"<b>{row.conversion_rate_pct:.3f}%</b><extra></extra>"
+                    f"{row.converted:,} of {row.users:,} users<br>"
+                    f"<b>{row.conversion_rate_pct:.4f}%</b><extra></extra>"
                 ),
             )
         )

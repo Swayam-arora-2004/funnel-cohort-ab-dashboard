@@ -28,7 +28,7 @@ CACHE_TTL_SECONDS = 600
 
 # Metrics the A/B page may ask for. User input is checked against this allowlist before it
 # reaches the query -- the binding already makes it safe, this gives a clear error too (SEC-3).
-AB_METRICS: tuple[str, ...] = ("retention_1", "retention_7")
+AB_METRICS: tuple[str, ...] = ("visit", "conversion")
 
 
 def _run(sql: str, params: dict | None = None) -> pd.DataFrame:

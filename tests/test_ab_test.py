@@ -22,15 +22,22 @@ from statsmodels.stats.proportion import (
 
 from src.analysis.ab_test import two_proportion_ztest
 
-# The real Cookie Cats numbers, from analytics.v_ab_summary (docs/QUERIES.md).
-DAY1 = {"conv_a": 20034, "n_a": 44700, "conv_b": 20119, "n_b": 45489}
-DAY7 = {"conv_a": 8502, "n_a": 44700, "conv_b": 8279, "n_b": 45489}
+# Two realistic shapes for the cross-checks below. They are deliberately NOT the project's
+# current dataset: these tests verify the ARITHMETIC against statsmodels, and tying them to
+# whichever experiment the project happens to use would mean swapping the dataset breaks the
+# maths tests. The published figures are pinned in tests/test_documented_numbers.py instead;
+# the live numbers are exercised by the bridge tests at the bottom of this file.
+#
+# CASE_SMALL is a near-null difference in a 45k-per-arm test; CASE_LARGE is a tiny but real
+# difference in a multi-million-user test, which is the shape the Criteo data has.
+CASE_SMALL = {"conv_a": 8502, "n_a": 44700, "conv_b": 8279, "n_b": 45489}
+CASE_LARGE = {"conv_a": 4800, "n_a": 2_000_000, "conv_b": 29000, "n_b": 11_000_000}
 
 
 # --------------------------------------------------------------- cross-check vs statsmodels
 
 
-@pytest.mark.parametrize("case", [DAY1, DAY7], ids=["day1", "day7"])
+@pytest.mark.parametrize("case", [CASE_SMALL, CASE_LARGE], ids=["small", "large"])
 def test_z_and_p_match_statsmodels(case):
     """Our pooled z-test must agree with statsmodels.proportions_ztest exactly.
 
@@ -47,7 +54,7 @@ def test_z_and_p_match_statsmodels(case):
     assert result.p_value == pytest.approx(p_ref, abs=1e-10)
 
 
-@pytest.mark.parametrize("case", [DAY1, DAY7], ids=["day1", "day7"])
+@pytest.mark.parametrize("case", [CASE_SMALL, CASE_LARGE], ids=["small", "large"])
 def test_confidence_interval_matches_statsmodels_wald(case):
     """Our unpooled interval must match statsmodels' Wald interval on the difference.
 
@@ -161,7 +168,7 @@ def test_significance_and_interval_agree():
     disagree in principle because one uses the pooled SE and the other does not; with ~45,000
     per arm they do not, and if that ever changed we would want to know.)
     """
-    for case in (DAY1, DAY7):
+    for case in (CASE_SMALL, CASE_LARGE):
         result = two_proportion_ztest(**case)
         excludes_zero = result.ci_low_pp > 0 or result.ci_high_pp < 0
         assert result.significant == excludes_zero, case
@@ -220,7 +227,7 @@ def test_verdict_never_claims_no_difference():
 
 
 def test_significant_negative_result_says_do_not_ship():
-    result = two_proportion_ztest(**DAY7)
+    result = two_proportion_ztest(**CASE_SMALL)
     assert result.significant
     assert result.diff_pp < 0
     assert "do not ship" in result.verdict.lower()
@@ -228,11 +235,15 @@ def test_significant_negative_result_says_do_not_ship():
 
 def test_caveats_mention_power_and_multiple_metrics():
     """FR-14: sample size, power and the two-metric caveat must always be stated."""
-    joined = " ".join(two_proportion_ztest(**DAY7).caveats).lower()
+    joined = " ".join(two_proportion_ztest(**CASE_SMALL).caveats).lower()
     assert "80% power" in joined
     assert "bonferroni" in joined
     assert "did not run this experiment" in joined
     assert "primary metric" in joined
+    # The Criteo data makes this caveat load-bearing: it records both the random assignment
+    # and whether an ad was actually served, and splitting on the latter would destroy the
+    # randomisation. The readout must say which one it used.
+    assert "intention-to-treat" in joined
 
 
 # --------------------------------------------------------------- the DB bridge (ab_report)
@@ -241,57 +252,65 @@ def test_caveats_mention_power_and_multiple_metrics():
 
 
 @pytest.mark.db
-def test_report_reproduces_the_pure_function(ro_engine):  # noqa: ARG001 - fixture forces the skip
-    """The numbers the view feeds in must match the numbers recorded in docs/QUERIES.md.
-
-    If someone edits v_ab_summary, this fails -- which is the point: the documented results and
-    the live view must never drift apart.
-    """
-    from src.analysis.ab_report import run_all
+def test_report_runs_both_metrics(ro_engine):  # noqa: ARG001 - the fixture forces the skip
+    """Both outcomes are always returned, so neither can be cherry-picked (FR-14, D-016)."""
+    from src.analysis.ab_report import METRICS, run_all
 
     results = run_all()
-    assert set(results) == {"retention_1", "retention_7"}
-
-    day7 = results["retention_7"]
-    assert (day7.conv_a, day7.n_a) == (8502, 44700)
-    assert (day7.conv_b, day7.n_b) == (8279, 45489)
-    assert day7.p_value == pytest.approx(two_proportion_ztest(**DAY7).p_value, abs=1e-12)
-
-    day1 = results["retention_1"]
-    assert (day1.conv_a, day1.n_a) == (20034, 44700)
-    assert (day1.conv_b, day1.n_b) == (20119, 45489)
+    assert set(results) == set(METRICS)
+    assert len(results) == 2
 
 
 @pytest.mark.db
-def test_report_rejects_an_unknown_metric(ro_engine):  # noqa: ARG001 - fixture forces the skip
+def test_report_arms_partition_the_users(ro_engine):  # noqa: ARG001 - forces the skip
+    """Per metric, the two arms must account for every user exactly once.
+
+    Reading the total from the source table rather than hardcoding it means this test survives
+    a dataset swap -- which is exactly what just happened (D-023).
+    """
+    from sqlalchemy import text
+
+    from src.analysis.ab_report import run_all
+    from src.db import engine_rw
+
+    with engine_rw().connect() as conn:
+        total = int(conn.execute(text("SELECT count(*) FROM raw.ab_criteo_uplift")).scalar_one())
+
+    for metric, result in run_all().items():
+        assert result.n_a + result.n_b == total, f"{metric} covers {result.n_a + result.n_b}"
+
+
+@pytest.mark.db
+def test_report_rejects_an_unknown_metric(ro_engine):  # noqa: ARG001 - forces the skip
     """Metric names are validated against an allowlist before reaching the query (SEC-3)."""
     from src.analysis.ab_report import run_metric
 
     with pytest.raises(ValueError, match="unknown metric"):
-        run_metric("retention_7; DROP TABLE raw.orders")
+        run_metric("conversion; DROP TABLE raw.orders")
 
 
 @pytest.mark.db
-def test_day7_survives_bonferroni_correction(ro_engine):  # noqa: ARG001 - fixture forces the skip
-    """Two metrics were tested, so the honest threshold is 0.025, not 0.05.
-
-    Asserting this means the headline conclusion does not rest on the uncorrected threshold.
-    """
+def test_report_matches_the_pure_function(ro_engine):  # noqa: ARG001 - forces the skip
+    """The bridge must not do any arithmetic of its own."""
     from src.analysis.ab_report import run_metric
 
-    assert run_metric("retention_7").p_value < 0.025
+    live = run_metric("conversion")
+    recomputed = two_proportion_ztest(
+        conv_a=live.conv_a, n_a=live.n_a, conv_b=live.conv_b, n_b=live.n_b
+    )
+    assert live.p_value == pytest.approx(recomputed.p_value, abs=1e-12)
+    assert live.ci_low_pp == pytest.approx(recomputed.ci_low_pp, abs=1e-12)
 
 
 @pytest.mark.db
-def test_day1_is_underpowered(ro_engine):  # noqa: ARG001 - fixture forces the skip
-    """Day-1 is not merely non-significant: the test was too small to settle it.
+def test_control_arm_is_the_withheld_group(ro_engine):  # noqa: ARG001 - forces the skip
+    """Arm A must be the randomly WITHHELD group.
 
-    Recorded as a test because 'not significant' and 'no effect' are different claims, and the
-    difference is exactly what the observed power tells you.
+    If the arms were swapped, every sign in the readout would flip and the recommendation
+    would be exactly backwards -- a silent, catastrophic error. The withheld group is the
+    smaller one here, which gives a cheap independent check.
     """
     from src.analysis.ab_report import run_metric
 
-    day1 = run_metric("retention_1")
-    assert not day1.significant
-    assert day1.observed_power < 0.5
-    assert abs(day1.diff_pp) < day1.mde_pp
+    result = run_metric("conversion")
+    assert result.n_a < result.n_b, "control should be the smaller, withheld arm"

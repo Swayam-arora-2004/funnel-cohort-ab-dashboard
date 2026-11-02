@@ -44,7 +44,19 @@ log = logging.getLogger("load_raw")
 # Cookie Cats writes booleans as the strings TRUE/FALSE, which pandas will not coerce to its
 # nullable boolean dtype on its own. Map them explicitly so an unexpected third value becomes
 # NA and is caught by the NOT NULL constraint rather than being guessed at.
-_BOOL_MAP = {"TRUE": True, "FALSE": False, "True": True, "False": False}
+# Two sources write booleans differently: Cookie Cats used the strings TRUE/FALSE, Criteo
+# writes 0/1. Both are mapped explicitly so an unexpected third value becomes NA and is caught
+# by the NOT NULL constraint, rather than being guessed at.
+_BOOL_MAP = {
+    "TRUE": True,
+    "FALSE": False,
+    "True": True,
+    "False": False,
+    "true": True,
+    "false": False,
+    "1": True,
+    "0": False,
+}
 
 
 class LoadError(RuntimeError):
@@ -67,9 +79,17 @@ def read_csv(contract: CsvContract, raw_dir) -> pd.DataFrame:
     _READ_AS = {"boolean": "string", "Int64": "float64"}
     read_dtypes = {col: _READ_AS.get(dtype, dtype) for col, dtype in contract.dtypes.items()}
 
+    # usecols makes pandas skip the unwanted columns while PARSING, rather than reading them
+    # and dropping them afterwards. On the 25M-row experiment file that is the difference
+    # between a few hundred MB and several GB of memory.
+    usecols = (
+        [*contract.dtypes, *contract.date_columns] if contract.read_only_contract_columns else None
+    )
+
     frame = pd.read_csv(
         path,
         dtype=read_dtypes,
+        usecols=usecols,
         parse_dates=list(contract.date_columns) or None,
         # The reviews CSV contains quoted free text with embedded newlines, so the C parser's
         # default handling matters; keep_default_na keeps empty strings as NA consistently.

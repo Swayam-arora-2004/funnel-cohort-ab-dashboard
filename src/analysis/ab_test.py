@@ -159,6 +159,31 @@ def two_proportion_ztest(
     )
 
 
+def format_p_value(p: float) -> str:
+    """Format a p-value honestly at every magnitude.
+
+    Three cases, and the third is the one that matters:
+      * >= 1e-4  -> fixed point, which is what a reader expects.
+      * >= 5e-324 -> scientific. A p of 7.3e-179 printed as "0.000000" looks like a formatting
+        failure; it is not, it is what a 14-million-user experiment does to a real effect.
+      * underflowed to exactly 0.0 -> print "< 1e-300", NOT "0". A p-value is never exactly
+        zero. It is the probability of data at least this extreme under the null, and that is
+        always positive -- here it is simply smaller than float64 can hold (z = 65.2, so the
+        true value is around 1e-926). Printing "p = 0" would state something that is
+        mathematically false; printing a bound states what we actually know.
+
+    The returned string CARRIES ITS OWN OPERATOR ("= 0.0016" or "< 1e-300") so callers write
+    `f"(p {_format_p(x)})"`. Returning a bare value made the underflow case read
+    "p = < 1e-300".
+    """
+
+    if p >= 1e-4:
+        return f"= {p:.4f}"
+    if p > 0:
+        return f"= {p:.3e}"
+    return "< 1e-300"
+
+
 def _verdict(
     diff: float,
     p_value: float,
@@ -181,14 +206,16 @@ def _verdict(
         if diff < 0:
             return (
                 f"Do NOT ship the variant. It performed {size_pp:.2f} pp {direction} than the "
-                f"control, and that gap is statistically significant (p = {p_value:.4f}). "
+                f"control, and that gap is statistically significant "
+                f"(p {format_p_value(p_value)}). "
                 f"The true difference is most likely between {ci_low * 100:+.2f} pp and "
                 f"{ci_high * 100:+.2f} pp -- the whole range is negative, so the variant is "
                 f"worse, not merely unproven."
             )
         return (
             f"Ship the variant, with the size caveat below. It performed {size_pp:.2f} pp "
-            f"{direction} than the control (p = {p_value:.4f}), and the true difference is "
+            f"{direction} than the control (p {format_p_value(p_value)}), and the true "
+            f"difference is "
             f"most likely between {ci_low * 100:+.2f} pp and {ci_high * 100:+.2f} pp. Check "
             f"that the LOWER end of that range is still worth the cost of shipping."
         )
@@ -198,7 +225,8 @@ def _verdict(
     if mde > 0 and abs(diff) < mde:
         return (
             f"Inconclusive -- do not ship on this evidence. The observed gap of "
-            f"{size_pp:.2f} pp is not distinguishable from noise (p = {p_value:.4f}), and the "
+            f"{size_pp:.2f} pp is not distinguishable from noise "
+            f"(p {format_p_value(p_value)}), and the "
             f"95% interval, {ci_low * 100:+.2f} pp to {ci_high * 100:+.2f} pp, contains zero. "
             f"Note this test could only reliably detect a difference of {mde * 100:.2f} pp or "
             f"larger, so a real effect smaller than that would have been missed. This is "
@@ -206,7 +234,7 @@ def _verdict(
         )
     return (
         f"Inconclusive -- do not ship on this evidence. The observed gap of {size_pp:.2f} pp "
-        f"is not statistically significant (p = {p_value:.4f}) and the 95% interval, "
+        f"is not statistically significant (p {format_p_value(p_value)}) and the 95% interval, "
         f"{ci_low * 100:+.2f} pp to {ci_high * 100:+.2f} pp, contains zero."
     )
 
@@ -218,16 +246,19 @@ def _caveats(n_a: int, n_b: int, mde: float, abs_diff: float, significant: bool)
         f"With these sample sizes the test can reliably detect a difference of "
         f"{mde * 100:.2f} pp or larger (80% power, alpha = 0.05). Smaller real effects would "
         f"probably be missed.",
-        "We did not run this experiment. The randomisation, the exposure logic and the "
+        "We did not run this experiment. The randomisation, the ad-serving logic and the "
         "tracking are taken on trust from the published dataset.",
         "The experiment's intended PRIMARY metric is not documented, so the choice of metric "
         "here is ours, not the original team's.",
-        "Two metrics are examined (day-1 and day-7 retention). Testing two outcomes doubles "
+        "This is an intention-to-treat analysis: it splits on the random ASSIGNMENT, not on "
+        "whether a user was actually shown an ad. Splitting on exposure would compare "
+        "self-selected groups and destroy the randomisation.",
+        "Two metrics are examined (site visit and conversion). Testing two outcomes doubles "
         "the chance of one looking significant by luck; a Bonferroni-corrected threshold would "
         "be alpha = 0.025 rather than 0.05. Both metrics are reported in full so neither can "
         "be cherry-picked after the fact.",
-        "Each user is counted once and assumed independent. Retention is measured per install, "
-        "so a person with two devices would appear twice.",
+        "Each user is counted once and assumed independent. A person using two devices would "
+        "appear as two users.",
         "This is a single fixed-horizon analysis. No sequential or peeking correction applies, "
         "because the data was analysed once, after collection ended.",
     ]

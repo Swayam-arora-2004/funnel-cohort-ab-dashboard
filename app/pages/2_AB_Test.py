@@ -21,7 +21,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from app.components import charts, queries  # noqa: E402 - after the sys.path fix
 from src.analysis import ab_report  # noqa: E402
-from src.analysis.ab_test import ABResult  # noqa: E402
+from src.analysis.ab_test import ABResult, format_p_value  # noqa: E402
 
 log = logging.getLogger(__name__)
 st.set_page_config(page_title="A/B Test", page_icon="test_tube", layout="wide")
@@ -33,10 +33,13 @@ def render_metric(metric: str, result: ABResult) -> None:
     summary = queries.ab_summary(metric)
 
     # Significance is stated in WORDS, not by colour alone, and before the charts.
-    if result.significant:
-        st.markdown(f"**Statistically significant** at α = 0.05 (p = {result.p_value:.6f})")
-    else:
-        st.markdown(f"**Not statistically significant** at α = 0.05 (p = {result.p_value:.6f})")
+    # format_p_value is shared with the CLI readout. Formatting it here with ":.6f" printed
+    # "p = 0.000000" for the visit metric, whose true p-value underflows float64 entirely --
+    # which reads like a broken page rather than like overwhelming evidence.
+    verdict_word = (
+        "Statistically significant" if result.significant else "Not statistically significant"
+    )
+    st.markdown(f"**{verdict_word}** at α = 0.05 (p {format_p_value(result.p_value)})")
 
     # The two charts share a row -- both read fine at half width. The statistics TABLE gets the
     # full width on its own row: squeezed into a side column it clipped at a 1280px window, so
@@ -67,8 +70,8 @@ def render_metric(metric: str, result: ABResult) -> None:
         st.dataframe(
             {
                 "Measure": [
-                    "Control (gate_30)",
-                    "Variant (gate_40)",
+                    "Control (withheld)",
+                    "Treatment (targeted)",
                     "Absolute difference",
                     "Relative change",
                     "z statistic",
@@ -91,9 +94,9 @@ def render_metric(metric: str, result: ABResult) -> None:
                     f"{result.observed_power:.1%}",
                 ],
                 "Detail": [
-                    f"{result.conv_a:,} of {result.n_a:,} players retained",
-                    f"{result.conv_b:,} of {result.n_b:,} players retained",
-                    "variant minus control",
+                    f"{result.conv_a:,} of {result.n_a:,} users",
+                    f"{result.conv_b:,} of {result.n_b:,} users",
+                    "treatment minus control",
                     "as a share of the control rate",
                     "pooled standard error",
                     "two-proportion z-test",
@@ -144,21 +147,23 @@ hand" does not mean "unverified".
 
 # ---------------------------------------------------------------------------- page
 
-st.title("A/B test: Cookie Cats progression gate")
+st.title("A/B test: does advertising actually cause conversions?")
 st.caption(
-    "**Source: Cookie Cats mobile-game A/B test — a REAL published experiment, not simulated.** "
-    "A different dataset from the rest of the dashboard, which uses Olist e-commerce data. "
-    "90,189 players installing the game were randomised to one of two variants, differing only "
-    "in where the first progression gate appears: `gate_30` (level 30, the existing behaviour, "
-    "i.e. the control) or `gate_40` (level 40, the change being tested). Licence note: Kaggle "
-    "reports no licence for this dataset; see `docs/DATA.md`."
+    "**Source: Criteo Uplift v2.1 — a REAL randomised experiment, not simulated.** "
+    "Published by Criteo's AI Lab under **CC BY-NC-SA 4.0**. A different dataset from the rest "
+    "of the dashboard, which uses Olist e-commerce data. Criteo call it an *incrementality "
+    "test*: a random part of the population is **withheld** from being targeted by "
+    "advertising, and that withheld group is the control arm. 13,979,592 users, one row each."
 )
 
 try:
     st.caption(
-        "**Day-1 and day-7 retention are both reported.** Running two tests and presenting "
-        "only whichever came out significant is p-hacking, so neither is hidden, and the "
-        "threshold corrected for testing two outcomes is shown beside the raw p-value."
+        "**Both outcomes are reported — site visit and conversion.** Running two tests and "
+        "presenting only whichever came out significant is p-hacking, so neither is hidden, "
+        "and the threshold corrected for testing two outcomes is shown beside the raw "
+        "p-value. The split is on the **random assignment**, not on whether a user was "
+        "actually shown an ad: being shown an ad is a consequence of the treatment, so "
+        "splitting on it would compare self-selected groups and destroy the randomisation."
     )
 
     results = ab_report.run_all()

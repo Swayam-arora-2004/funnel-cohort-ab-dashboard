@@ -50,8 +50,8 @@ try:
     dropoff = queries.funnel_dropoff()
     repeat = queries.repeat_purchase_rate()
     ab = ab_report.run_all()
-    day7 = ab["retention_7"]
-    day1 = ab["retention_1"]
+    conv = ab["conversion"]
+    visit = ab["visit"]
 
     stages = dropoff.set_index("stage_order")
     payment_drop = stages.loc[2]
@@ -66,7 +66,7 @@ try:
         [
             "1. Logistics, not payments",
             "2. Single-purchase marketplace",
-            "3. The gate change hurt retention",
+            "3. Does advertising cause conversions?",
         ]
     )
 
@@ -159,7 +159,7 @@ the calculation the A/B page's minimum-detectable-effect figure demonstrates.
 
     # ================================================================ FINDING 3
     with tab3:
-        st.subheader("Moving the game's progression gate to level 40 made retention worse")
+        st.subheader("Advertising does cause conversions — and the effect size is small")
         cols = st.columns(2)
         with cols[0].container(border=True):
             # The only genuine delta on this page: the variant really did move the metric.
@@ -169,11 +169,11 @@ the calculation the A/B page's minimum-detectable-effect figure demonstrates.
             # correct here, and the rendered colour was checked rather than assumed.
             st.metric(
                 "Day-7 retention change",
-                f"{day7.diff_pp:+.2f} pp",
-                f"{day7.relative_change_pct:+.1f}% relative",
+                f"{conv.diff_pp:+.2f} pp",
+                f"{conv.relative_change_pct:+.1f}% relative",
             )
         with cols[1].container(border=True):
-            st.metric("p-value", f"{day7.p_value:.5f}")
+            st.metric("p-value", f"{conv.p_value:.1e}")
             st.caption("survives Bonferroni")
 
         # The confidence interval gets a FULL-WIDTH tile of its own. Its value is the longest
@@ -182,35 +182,41 @@ the calculation the A/B page's minimum-detectable-effect figure demonstrates.
         with st.container(border=True):
             st.metric(
                 "95% confidence interval on the difference",
-                f"{day7.ci_low_pp:+.2f} pp to {day7.ci_high_pp:+.2f} pp",
+                f"{conv.ci_low_pp:+.4f} pp to {conv.ci_high_pp:+.4f} pp",
             )
             st.caption("Entirely below zero — the variant is worse, not merely unproven.")
 
         st.markdown(
             f"""
-**The number.** Moving the first progression gate from level 30 to level 40 changed 7-day
-retention from **{day7.rate_a * 100:.3f}%** to **{day7.rate_b * 100:.3f}%** — a drop of
-**{abs(day7.diff_pp):.2f} pp** ({abs(day7.relative_change_pct):.1f}% relative), with
-**p = {day7.p_value:.5f}** and a 95% confidence interval of
-**[{day7.ci_low_pp:+.2f}, {day7.ci_high_pp:+.2f}] pp**. The whole interval sits below zero, so
-the variant is *worse* — not merely unproven. It also clears the Bonferroni-corrected threshold
-of α = 0.025 for having tested two metrics.
+**The number.** Users randomly selected to be targeted by advertising converted at
+**{conv.rate_b * 100:.4f}%** against **{conv.rate_a * 100:.4f}%** for the users randomly
+**withheld** from targeting — a lift of **{conv.diff_pp:+.4f} pp**
+({conv.relative_change_pct:+.1f}% relative), with **p = {conv.p_value:.2e}** and a 95%
+confidence interval of **[{conv.ci_low_pp:+.4f}, {conv.ci_high_pp:+.4f}] pp**. Site visits
+moved too: **{visit.diff_pp:+.4f} pp** (p = {visit.p_value:.2e}).
 
-**Day-1 retention is inconclusive, which is a different claim.** It came out at
-**{day1.diff_pp:+.2f} pp, p = {day1.p_value:.4f}** — but observed power was only
-**{day1.observed_power:.0%}**, and the observed gap is smaller than the
-**{day1.mde_pp:.2f} pp** minimum this sample could reliably detect. The honest reading is
-"we did not detect a difference", not "there is no difference".
+**Why it matters.** This is the question advertising spend actually turns on, and it is
+answerable here *causally* rather than by correlation, because the control group was withheld
+at random. The honest reading is two-sided: the effect is **real** — the interval is nowhere
+near zero across {conv.n_a + conv.n_b:,} users — but it is **small in absolute terms**. Whether
+it pays depends on margin per conversion against cost per impression, which this dataset does
+not contain.
 
-**Recommended action.** **Do not ship `gate_40`.** Keep the gate at level 30. If the goal
-behind moving it was monetisation rather than retention, that trade needs measuring explicitly:
-re-run the experiment with revenue-per-install as the pre-registered primary metric and
-7-day retention as a guardrail, and size it against the
-**{day7.mde_pp:.2f} pp** effect this sample size can detect. Note we did not run this
-experiment and its intended primary metric is undocumented, so this recommendation is about
-the metric *we* chose to analyse.
+**The methodological point.** This splits on the **random assignment**, not on whether a user
+was actually shown an ad. Splitting on exposure is the tempting mistake: it would compare
+people who saw an ad against people who did not, but being shown an ad is a *consequence* of
+the treatment and the users who get shown ads are systematically more active. That comparison
+would inflate the apparent effect and would not be causal at all. This is an
+intention-to-treat analysis, which is the conservative and correct choice.
+
+**Recommended action.** Do not read this as "advertising works, spend more". Read it as "the
+causal effect is {conv.diff_pp:+.4f} pp, now compare that against cost". The next step is a
+break-even calculation: at {conv.diff_pp / 100:.6f} incremental conversions per targeted user,
+advertising pays only if margin per conversion exceeds cost per targeted user. Run that with
+real cost data before changing budget.
             """
         )
+
         st.caption(
             "Source: `analytics.v_ab_summary` + `src/analysis/ab_test.py` · "
             "see `docs/QUERIES.md` §10"
@@ -218,9 +224,9 @@ the metric *we* chose to analyse.
 
     st.caption(
         "**Two datasets, stated plainly.** Findings 1 and 2 come from the Olist Brazilian "
-        "E-Commerce dataset (CC BY-NC-SA 4.0). Finding 3 comes from the Cookie Cats "
-        "mobile-game A/B test, a real published experiment on an unrelated business. They are "
-        "not connected, and no finding here is derived by combining them."
+        "E-Commerce dataset. Finding 3 comes from the Criteo Uplift incrementality test, a "
+        "real randomised experiment on an unrelated business. Both are CC BY-NC-SA 4.0. They "
+        "are not connected, and no finding here is derived by combining them."
     )
 
 except Exception as exc:  # noqa: BLE001

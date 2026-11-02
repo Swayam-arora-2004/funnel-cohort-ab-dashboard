@@ -13,17 +13,17 @@ from __future__ import annotations
 
 from sqlalchemy import text
 
-from src.analysis.ab_test import ABResult, two_proportion_ztest
+from src.analysis.ab_test import ABResult, format_p_value, two_proportion_ztest
 from src.db import engine_ro, fetch_df
 
 # The metrics the view exposes. User input is validated against this allowlist rather than
 # being interpolated anywhere (SEC-3, SEC-4).
-METRICS: tuple[str, ...] = ("retention_1", "retention_7")
+METRICS: tuple[str, ...] = ("visit", "conversion")
 
 # Human-readable labels for the dashboard and the printed report.
 METRIC_LABELS: dict[str, str] = {
-    "retention_1": "Day-1 retention",
-    "retention_7": "Day-7 retention",
+    "visit": "Site visit",
+    "conversion": "Conversion",
 }
 
 _SUMMARY_SQL = text(
@@ -78,15 +78,16 @@ def format_report(metric: str, result: ABResult) -> str:
         f"{'=' * 78}",
         f"  {label}  ({metric})",
         f"{'=' * 78}",
-        f"  Control (gate_30):  {result.conv_a:>7,} / {result.n_a:>7,}  "
-        f"= {result.rate_a * 100:6.3f}%",
-        f"  Variant (gate_40):  {result.conv_b:>7,} / {result.n_b:>7,}  "
-        f"= {result.rate_b * 100:6.3f}%",
+        f"  Control (withheld):  {result.conv_a:>9,} / {result.n_a:>10,}  "
+        f"= {result.rate_a * 100:7.4f}%",
+        f"  Treatment (targeted):{result.conv_b:>9,} / {result.n_b:>10,}  "
+        f"= {result.rate_b * 100:7.4f}%",
         "",
         f"  Absolute difference : {result.diff_pp:+.3f} pp",
         f"  Relative change     : {result.relative_change_pct:+.2f}%",
         f"  z statistic         : {result.z_stat:+.4f}",
-        f"  p-value (two-sided) : {result.p_value:.6f}"
+        # Shared with the dashboard, so the CLI and the UI cannot print it differently.
+        f"  p-value (two-sided) {format_p_value(result.p_value)}"
         f"{'  SIGNIFICANT at 0.05' if result.significant else '  not significant at 0.05'}",
         f"  95% CI on difference: [{result.ci_low_pp:+.3f}, {result.ci_high_pp:+.3f}] pp",
         f"  Min detectable effect: {result.mde_pp:.3f} pp  (80% power, alpha 0.05)",

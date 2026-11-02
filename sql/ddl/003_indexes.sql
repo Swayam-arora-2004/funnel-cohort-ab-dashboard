@@ -59,14 +59,4 @@ CREATE INDEX IF NOT EXISTS ix_customers_unique_id
 COMMENT ON INDEX raw.ix_customers_unique_id IS
   'Serves analytics.v_cohort_*: GROUP BY customer_unique_id (the person-level key, D-007).';
 
--- ---------------------------------------------------------------- ab_cookie_cats
--- Serves: v_ab_summary -- GROUP BY version. Only two distinct values, so a plain btree is
--- low-value on its own; it is useful here because the query is a pure aggregate over
--- (version, retention_1, retention_7) and this covering index lets Postgres answer it
--- index-only, without touching the table at all.
-CREATE INDEX IF NOT EXISTS ix_ab_version_outcomes
-    ON raw.ab_cookie_cats (version) INCLUDE (retention_1, retention_7);
-COMMENT ON INDEX raw.ix_ab_version_outcomes IS
-  'Serves analytics.v_ab_summary: covering index for GROUP BY version with retention_1/retention_7 aggregates (index-only scan).';
-
 \echo 'indexes ready'

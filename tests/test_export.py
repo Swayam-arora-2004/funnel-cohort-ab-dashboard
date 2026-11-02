@@ -92,8 +92,8 @@ def test_exported_ab_summary_matches_the_view(ro_engine):  # noqa: ARG001 - forc
     """A spot check that the CSV holds the same numbers the dashboard shows."""
     export_all()
     frame = pd.read_csv(get_settings().exports_dir / "v_ab_summary.csv")
-    day7 = frame[frame.metric == "retention_7"].set_index("variant")
-    assert int(day7.loc["gate_30", "users"]) == 44_700
-    assert int(day7.loc["gate_40", "users"]) == 45_489
-    assert float(day7.loc["gate_30", "conversion_rate_pct"]) == pytest.approx(19.020, abs=0.001)
-    assert float(day7.loc["gate_40", "conversion_rate_pct"]) == pytest.approx(18.200, abs=0.001)
+    conv = frame[frame.metric == "conversion"].set_index("variant")
+    assert int(conv.loc["control", "users"]) == 2_096_937
+    assert int(conv.loc["treatment", "users"]) == 11_882_655
+    assert float(conv.loc["control", "conversion_rate_pct"]) == pytest.approx(0.1938, abs=0.0001)
+    assert float(conv.loc["treatment", "conversion_rate_pct"]) == pytest.approx(0.3089, abs=0.0001)
