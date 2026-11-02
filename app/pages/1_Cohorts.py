@@ -12,13 +12,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from app.components import charts, layout, queries  # noqa: E402 - after the sys.path fix
+from app.components import charts, queries  # noqa: E402 - after the sys.path fix
 
 log = logging.getLogger(__name__)
 st.set_page_config(page_title="Cohorts", page_icon="bar_chart", layout="wide")
 
-# Scroll the browser window, not Streamlit\'s inner container (D-021).
-layout.use_window_scrolling()
 
 st.title("Cohort retention")
 st.caption(
