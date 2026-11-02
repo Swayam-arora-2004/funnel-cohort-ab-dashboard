@@ -1,0 +1,34 @@
+# Secrets — never commit (SEC-2)
+.env
+.env.local
+*.pem
+*.key
+kaggle.json
+
+# Downloaded data — untrusted input, large, re-downloadable (see docs/DATA.md)
+data/raw/*
+!data/raw/.gitkeep
+
+# Generated artefacts
+exports/*
+!exports/.gitkeep
+
+# BI workbooks (may embed credentials or extracts)
+*.pbix
+*.twb
+*.twbx
+*.hyper
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

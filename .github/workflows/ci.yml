@@ -1,0 +1,80 @@
+# CI gates (SEC-12). A milestone is not done until every job here is green.
+# No gate may be disabled to make a build pass.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    # CI starts a real PostgreSQL so the database tests actually run, instead of skipping.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_only_not_a_real_secret
+          POSTGRES_DB: analytics_demo
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # gitleaks must see the FULL history, not just the tip (SEC-2)
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pinned dependencies
+        run: pip install -r requirements.txt
+
+      - name: ruff (lint + format)
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: bandit (security lint)
+        run: bandit -q -r src app
+
+      - name: pip-audit (known vulnerabilities)
+        # Audits the full transitive set, not just the direct dependencies -- the first draft of
+        # this project shipped a clean requirements.txt whose TRANSITIVE pillow had 40+ CVEs.
+        run: pip-audit -r requirements.lock.txt
+
+      - name: gitleaks (secret scan)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+      - name: Create schemas, roles and tables
+        env:
+          PGPASSWORD: ci_only_not_a_real_secret
+        run: |
+          for f in sql/ddl/*.sql; do
+            psql -h localhost -U postgres -d analytics_demo -v ON_ERROR_STOP=1 \
+              -v loader_user=loader_rw   -v loader_password=ci_loader_pw \
+              -v ro_user=dashboard_ro    -v ro_password=ci_ro_pw \
+              -f "$f"
+          done
+
+      - name: pytest
+        # The CSVs are not in git (42 MB, licence-restricted), so the data-dependent tests skip
+        # here and are verified locally. The privilege-boundary and contract tests still run.
+        env:
+          PG_HOST: localhost
+          PG_PORT: "5432"
+          PG_DB: analytics_demo
+          LOADER_USER: loader_rw
+          LOADER_PASSWORD: ci_loader_pw
+          RO_USER: dashboard_ro
+          RO_PASSWORD: ci_ro_pw
+        run: pytest

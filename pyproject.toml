@@ -1,0 +1,19 @@
+# Lint and test configuration only. This project is not packaged or published.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "C4", "SIM", "RET"]
+# S608 = "possible SQL injection via string concatenation". We keep it ON deliberately:
+# it is the single most important check for this project (SEC-4).
+
+[tool.ruff.lint.per-file-ignores]
+# Tests are allowed to assert (S101) and to hardcode throwaway values.
+"tests/*" = ["S101"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = ["db: test requires a running PostgreSQL (skipped if unreachable)"]

@@ -1,0 +1,35 @@
+# PostgreSQL only. Python runs on the host (DECISIONS D-010).
+# Security notes (SEC-9):
+#   - official image pinned by tag; it already runs as the non-root `postgres` user
+#   - port bound to 127.0.0.1 so the database is not reachable from the network
+#   - password comes from .env at runtime; nothing is baked into an image layer
+#   - a NAMED volume holds the data, so database files can never land in the repo
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fca_postgres
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${PG_DB}
+      # Enforce password auth for host connections instead of the image default `trust`.
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    ports:
+      - "127.0.0.1:${PG_PORT}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  pgdata:
+    name: fca_pgdata
