@@ -51,11 +51,9 @@ try:
         )
 
     st.warning(
-        f"**Read this before reading the heatmap.** Only "
-        f"**{float(repeat.repeat_pct):.2f}%** of customers ever place a second order, so every "
-        "cell below is small by nature. That is the real shape of this marketplace, not a "
-        "broken query — and it is the most actionable finding in the dataset, because it means "
-        "roughly 97 in 100 customers are acquired once and never return."
+        f"**Only {float(repeat.repeat_pct):.2f}% of customers ever place a second order**, so "
+        "every cell below is small by nature — that is the real shape of this marketplace, not "
+        "a broken query."
     )
 
     with st.container(border=True):
@@ -76,13 +74,13 @@ try:
         st.info("No cohorts meet that minimum size.")
     else:
         st.subheader("Retention triangle")
+        st.plotly_chart(charts.cohort_heatmap(retention), width="stretch")
         st.caption(
             "Read a row left to right to watch one cohort decay. **M0 is the acquisition month "
-            "itself and is 100% by construction** — it is kept as the baseline to read the "
-            "later columns against, and it is excluded from the colour scale so the real "
-            "variation is not compressed into the palest step."
+            "itself and is 100% by construction** — kept as the baseline to read the later "
+            "columns against, and excluded from the colour scale so the real variation is not "
+            "compressed into the palest step."
         )
-        st.plotly_chart(charts.cohort_heatmap(retention), width="stretch")
 
         month1 = retention[retention.months_since == 1]
         if not month1.empty:

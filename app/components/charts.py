@@ -148,7 +148,7 @@ def cohort_heatmap(frame: pd.DataFrame) -> go.Figure:
             },
         )
     )
-    layout = pal.plotly_layout(height=560)
+    layout = pal.plotly_layout(height=480)
     layout["xaxis"]["showgrid"] = False
     layout["yaxis"]["showgrid"] = False
     layout["yaxis"]["autorange"] = "reversed"  # earliest cohort at the top, like a triangle

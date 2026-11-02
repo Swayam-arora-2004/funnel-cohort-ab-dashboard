@@ -1,4 +1,11 @@
-"""A/B test readout (FR-11 to FR-15, FR-19, FR-21)."""
+"""A/B test readout (FR-11 to FR-15, FR-19, FR-21).
+
+Layout note (D-020): each metric gets its own TAB. This was the tallest page in the app at
+2,742px, and a page that long is genuinely hard to use -- content keeps growing for the first
+~800ms while the charts lay out, so a scroll in progress jumps, and Streamlit's sidebar is its
+own scroll region so a wheel over those 300px moves nothing at all. One screen per tab removes
+the problem rather than documenting it.
+"""
 
 from __future__ import annotations
 
@@ -14,62 +21,49 @@ if str(REPO_ROOT) not in sys.path:
 
 from app.components import charts, queries  # noqa: E402 - must follow the sys.path fix
 from src.analysis import ab_report  # noqa: E402
+from src.analysis.ab_test import ABResult  # noqa: E402
 
 log = logging.getLogger(__name__)
 st.set_page_config(page_title="A/B Test", page_icon="test_tube", layout="wide")
 
-st.title("A/B test: Cookie Cats progression gate")
-st.caption(
-    "**Source: Cookie Cats mobile-game A/B test — a REAL published experiment, not simulated.** "
-    "This is a different dataset from the rest of the dashboard, which uses Olist e-commerce "
-    "data. 90,189 players installing the game were randomised to one of two variants, differing "
-    "only in where the first progression gate appears: `gate_30` (level 30, the existing "
-    "behaviour, i.e. the control) or `gate_40` (level 40, the change being tested). "
-    "Licence note: Kaggle reports no licence for this dataset; see `docs/DATA.md`."
-)
 
-try:
-    st.subheader("Both metrics, always")
-    st.caption(
-        "Day-1 and day-7 retention are both shown. **Running two tests and presenting only "
-        "whichever came out significant is p-hacking**, so neither is hidden, and the threshold "
-        "corrected for having tested two outcomes is reported alongside the raw p-value."
-    )
+def render_metric(metric: str, result: ABResult) -> None:
+    """One metric's full readout: charts, statistics, recommendation and caveats."""
+    label = ab_report.METRIC_LABELS[metric]
+    summary = queries.ab_summary(metric)
 
-    results = ab_report.run_all()
+    # Significance is stated in WORDS, not by colour alone, and before the charts.
+    if result.significant:
+        st.markdown(f"**Statistically significant** at α = 0.05 (p = {result.p_value:.6f})")
+    else:
+        st.markdown(f"**Not statistically significant** at α = 0.05 (p = {result.p_value:.6f})")
 
-    for metric, result in results.items():
-        label = ab_report.METRIC_LABELS[metric]
-        st.markdown(f"### {label}")
+    # The two charts share a row -- both read fine at half width. The statistics TABLE gets the
+    # full width on its own row: squeezed into a side column it clipped at a 1280px window, so
+    # "44.819% (20,034 / 44,700)" rendered as "44.819% (20,034" and the Bonferroni verdict as
+    # "α = 0.025 — does". A table that truncates its own numbers is worse than no table.
+    left, right = st.columns(2)
+    with left:
+        st.plotly_chart(charts.ab_comparison_chart(summary, label), width="stretch")
+    with right:
+        st.plotly_chart(
+            charts.confidence_interval_chart(result.ci_low_pp, result.ci_high_pp, result.diff_pp),
+            width="stretch",
+        )
+        st.caption(
+            "The interval chart is the whole conclusion in one picture: **if the bar crosses "
+            "the dashed line, the data cannot rule out 'no effect'.**"
+        )
 
-        summary = queries.ab_summary(metric)
+    st.markdown("**Recommendation**")
+    if result.significant and result.diff_pp < 0:
+        st.error(result.verdict)
+    elif result.significant:
+        st.success(result.verdict)
+    else:
+        st.warning(result.verdict)
 
-        # Significance is stated in WORDS, not by colour alone, and before the charts.
-        if result.significant:
-            st.markdown(f"**Statistically significant** at α = 0.05 (p = {result.p_value:.6f})")
-        else:
-            st.markdown(f"**Not statistically significant** at α = 0.05 (p = {result.p_value:.6f})")
-
-        # The two charts share a row -- both read fine at half width. The statistics TABLE
-        # gets the full width on its own row: squeezed into a side column it clipped at a
-        # 1280px window, so "44.819% (20,034 / 44,700)" rendered as "44.819% (20,034" and the
-        # Bonferroni verdict as "α = 0.025 — does". A table that truncates its own numbers is
-        # worse than no table. Same fix as the funnel table on the Home page.
-        left, right = st.columns(2)
-        with left:
-            st.plotly_chart(charts.ab_comparison_chart(summary, label), width="stretch")
-        with right:
-            st.plotly_chart(
-                charts.confidence_interval_chart(
-                    result.ci_low_pp, result.ci_high_pp, result.diff_pp
-                ),
-                width="stretch",
-            )
-            st.caption(
-                "The interval chart is the whole conclusion in one picture: **if the bar "
-                "crosses the dashed line, the data cannot rule out 'no effect'.**"
-            )
-
+    with st.expander("The numbers in full"):
         st.dataframe(
             {
                 "Measure": [
@@ -113,24 +107,15 @@ try:
             width="stretch",
         )
 
-        st.markdown("**Recommendation**")
-        if result.significant and result.diff_pp < 0:
-            st.error(result.verdict)
-        elif result.significant:
-            st.success(result.verdict)
-        else:
-            st.warning(result.verdict)
+    with st.expander(f"Caveats for {label} — read before quoting this result"):
+        for caveat in result.caveats:
+            st.markdown(f"- {caveat}")
 
-        with st.expander(f"Caveats for {label} — read before quoting this result"):
-            for caveat in result.caveats:
-                st.markdown(f"- {caveat}")
 
-        st.divider()
-
-    # ---------------------------------------------------------------- method note
-    with st.expander("Method: why the test and the interval use different standard errors"):
-        st.markdown(
-            """
+def render_method() -> None:
+    """Why the test and the interval use different standard errors."""
+    st.markdown(
+        """
 The z-test and the confidence interval are computed with **different** standard
 errors, on purpose. Conflating them is a common error.
 
@@ -153,8 +138,39 @@ The arithmetic is written out by hand in `src/analysis/ab_test.py` rather than
 delegated to a library, so it can be explained line by line — and every quantity
 is cross-checked against `statsmodels` to 1e-10 in the test suite, so "written by
 hand" does not mean "unverified".
-            """
-        )
+        """
+    )
+
+
+# ---------------------------------------------------------------------------- page
+
+st.title("A/B test: Cookie Cats progression gate")
+st.caption(
+    "**Source: Cookie Cats mobile-game A/B test — a REAL published experiment, not simulated.** "
+    "A different dataset from the rest of the dashboard, which uses Olist e-commerce data. "
+    "90,189 players installing the game were randomised to one of two variants, differing only "
+    "in where the first progression gate appears: `gate_30` (level 30, the existing behaviour, "
+    "i.e. the control) or `gate_40` (level 40, the change being tested). Licence note: Kaggle "
+    "reports no licence for this dataset; see `docs/DATA.md`."
+)
+
+try:
+    st.caption(
+        "**Day-1 and day-7 retention are both reported.** Running two tests and presenting "
+        "only whichever came out significant is p-hacking, so neither is hidden, and the "
+        "threshold corrected for testing two outcomes is shown beside the raw p-value."
+    )
+
+    results = ab_report.run_all()
+    tab_labels = [ab_report.METRIC_LABELS[m] for m in results]
+    tabs = st.tabs([*tab_labels, "Method"])
+
+    for tab, (metric, result) in zip(tabs, results.items(), strict=False):
+        with tab:
+            render_metric(metric, result)
+
+    with tabs[-1]:
+        render_method()
 
 except Exception as exc:  # noqa: BLE001
     log.exception("A/B page failed")

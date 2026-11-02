@@ -58,9 +58,20 @@ try:
     completion = stages.loc[5, "pct_of_all_orders"]
     ratio = float(carrier_drop.step_dropoff_pct) / float(payment_drop.step_dropoff_pct)
 
+    # Each finding gets its own TAB rather than stacking into one long page (D-020).
+    # Stacked, the third finding sat ~2,500px down: past the point where the page is still
+    # growing as it renders, and past where a scroll in progress gets yanked backwards.
+    tab1, tab2, tab3 = st.tabs(
+        [
+            "1. Logistics, not payments",
+            "2. Single-purchase marketplace",
+            "3. The gate change hurt retention",
+        ]
+    )
+
     # ================================================================ FINDING 1
-    with st.container(border=True):
-        st.subheader("1. The funnel leaks in logistics, not in payments")
+    with tab1:
+        st.subheader("The funnel leaks in logistics, not in payments")
         cols = st.columns(3)
         with cols[0].container(border=True):
             st.metric("Approved → carrier", f"{int(carrier_drop.dropped_orders):,}")
@@ -96,8 +107,8 @@ payment-retry project on this evidence.
         st.caption("Source: `analytics.v_funnel_dropoff` · see `docs/QUERIES.md` §1–2")
 
     # ================================================================ FINDING 2
-    with st.container(border=True):
-        st.subheader("2. This is a single-purchase marketplace, and that is the biggest risk")
+    with tab2:
+        st.subheader("This is a single-purchase marketplace, and that is the biggest risk")
         cols = st.columns(3)
         with cols[0].container(border=True):
             st.metric("Repeat-purchase rate", f"{float(repeat.repeat_pct):.2f}%")
@@ -146,8 +157,8 @@ the calculation the A/B page's minimum-detectable-effect figure demonstrates.
         )
 
     # ================================================================ FINDING 3
-    with st.container(border=True):
-        st.subheader("3. Moving the game's progression gate to level 40 made retention worse")
+    with tab3:
+        st.subheader("Moving the game's progression gate to level 40 made retention worse")
         cols = st.columns(2)
         with cols[0].container(border=True):
             # The only genuine delta on this page: the variant really did move the metric.
@@ -204,7 +215,6 @@ the metric *we* chose to analyse.
             "see `docs/QUERIES.md` §10"
         )
 
-    st.divider()
     st.caption(
         "**Two datasets, stated plainly.** Findings 1 and 2 come from the Olist Brazilian "
         "E-Commerce dataset (CC BY-NC-SA 4.0). Finding 3 comes from the Cookie Cats "
