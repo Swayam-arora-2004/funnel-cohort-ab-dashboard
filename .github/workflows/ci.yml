@@ -79,9 +79,23 @@ jobs:
               -f "$f"
           done
 
+      - name: Create the analytics views
+        # Worth a step of its own. Creating all 12 views proves every one is valid SQL and
+        # that its dependencies resolve, which is checkable WITHOUT any data — a view over an
+        # empty table still has to compile. The first CI run skipped this and 69 tests failed
+        # with "relation analytics.v_ab_summary does not exist".
+        env:
+          PGPASSWORD: ci_only_not_a_real_secret
+        run: |
+          for f in sql/views/*.sql; do
+            psql -h localhost -U postgres -d analytics_demo -v ON_ERROR_STOP=1 -f "$f"
+          done
+
       - name: pytest
-        # The CSVs are not in git (42 MB, licence-restricted), so the data-dependent tests skip
-        # here and are verified locally. The privilege-boundary and contract tests still run.
+        # The source data is not in git (425 MB, licence-restricted), so the warehouse here is
+        # empty. Tests marked `db` detect that and SKIP — see tests/conftest.py. What still
+        # runs: the pure statistics tests, the CSV-sanitiser tests, the contract checks, and
+        # above all the DDL and view steps, which prove the whole schema compiles.
         env:
           PG_HOST: localhost
           PG_PORT: "5432"
