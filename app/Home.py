@@ -31,7 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from app.components import charts, queries  # noqa: E402 - must follow the sys.path fix above
+from app.components import charts, layout, queries  # noqa: E402 - after the sys.path fix
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +40,9 @@ st.set_page_config(
     page_icon="chart_with_upwards_trend",
     layout="wide",
 )
+
+# Scroll the browser window, not Streamlit\'s inner container (D-021).
+layout.use_window_scrolling()
 
 
 def show_database_error(exc: Exception) -> None:

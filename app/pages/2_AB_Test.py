@@ -19,12 +19,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from app.components import charts, queries  # noqa: E402 - must follow the sys.path fix
+from app.components import charts, layout, queries  # noqa: E402 - after the sys.path fix
 from src.analysis import ab_report  # noqa: E402
 from src.analysis.ab_test import ABResult  # noqa: E402
 
 log = logging.getLogger(__name__)
 st.set_page_config(page_title="A/B Test", page_icon="test_tube", layout="wide")
+
+# Scroll the browser window, not Streamlit\'s inner container (D-021).
+layout.use_window_scrolling()
 
 
 def render_metric(metric: str, result: ABResult) -> None:
