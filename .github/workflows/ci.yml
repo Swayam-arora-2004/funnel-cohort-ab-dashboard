@@ -49,11 +49,24 @@ jobs:
         # this project shipped a clean requirements.txt whose TRANSITIVE pillow had 40+ CVEs.
         run: pip-audit -r requirements.lock.txt
 
-      - name: gitleaks (secret scan)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_CONFIG: .gitleaks.toml
+      - name: gitleaks (secret scan, FULL history)
+        # Run the binary directly rather than gitleaks-action@v2.
+        #
+        # The action derives a commit range from the push event (before..after) and scans only
+        # that range. Two problems with it here. First, SEC-2 requires scanning the **full
+        # history** — a secret committed and then removed in a later push would never appear in
+        # any single push range, which is exactly the case the requirement exists for. The
+        # action was quietly doing a weaker check than the SRS claimed. Second, it breaks
+        # outright after any history rewrite: the `before` commit no longer exists, git reports
+        # "unknown revision", and the step fails with no leak found at all.
+        #
+        # `gitleaks detect` with no range scans every commit reachable from HEAD, which is what
+        # was specified. checkout above already uses fetch-depth: 0 so the history is present.
+        run: |
+          curl -sSL -o /tmp/gitleaks.tar.gz \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks detect --source . --config .gitleaks.toml --redact --no-banner --verbose
 
       - name: Create schemas, roles and tables
         env:
