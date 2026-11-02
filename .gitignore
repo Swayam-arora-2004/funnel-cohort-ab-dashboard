@@ -1,7 +1,6 @@
-# Local tool config and personal working notes — not part of the software.
-# The engineering documentation that IS part of it lives in docs/.
-CLAUDE.md
-ai-context/
+# Personal working notes — milestone log, prep notes, task runbook.
+# Not part of the software; the engineering documentation lives in docs/.
+notes/
 
 # Secrets — never commit (SEC-2)
 .env
