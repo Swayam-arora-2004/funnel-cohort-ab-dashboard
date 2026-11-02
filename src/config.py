@@ -51,7 +51,7 @@ def _require(name: str) -> str:
     if not value:
         raise RuntimeError(
             f"Required environment variable {name} is missing or empty. "
-            "Copy .env.example to .env and fill it in (see docs/TECH_SPECS.md section 6)."
+            "Copy .env.example to .env and fill it in."
         )
     return value
 

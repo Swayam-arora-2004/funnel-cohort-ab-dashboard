@@ -1,14 +1,14 @@
-"""Every number printed in `docs/` is re-derived here and compared to what is written.
+"""Every published figure is re-derived here and compared to what is written down.
 
-This is what makes DECISIONS D-009 -- "never invent a result" -- enforceable rather than
+This is what makes "never invent a result" enforceable rather than
 aspirational. If a view changes, or the data is reloaded differently, the documentation stops
 matching reality and this test says so, naming the figure.
 
-The DOCUMENTED column below is what docs/QUERIES.md and docs/DATA.md
+The DOCUMENTED column below is what the project notes
 claim today. The LIVE column is recomputed from the database when the test runs.
 
 Two things this test taught, both kept as comments where they apply:
-  * `dashboard_ro` cannot read schema `raw` (SEC-5), so raw-layer checks need `engine_rw`.
+  * `dashboard_ro` cannot read schema `raw`, so raw-layer checks need `engine_rw`.
   * The tolerance must match the precision the docs actually print. A figure published as
     "43.0%" claims one decimal, so comparing to three flagged a false mismatch.
 """
@@ -51,7 +51,7 @@ def test_every_documented_number_still_holds(rw_engine, ro_engine):
         return fetch_df(engine_ro(), text(sql), p)
 
     def qraw(sql, **p):
-        """Raw layer. Needs loader_rw: dashboard_ro has NO privileges on `raw` (SEC-5)."""
+        """Raw layer. Needs loader_rw: dashboard_ro has NO privileges on `raw`."""
         return fetch_df(engine_rw(), text(sql), p)
 
     rows: list[tuple[str, str, str, bool]] = []

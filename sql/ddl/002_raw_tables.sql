@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS raw.order_reviews (
     review_answer_timestamp timestamp
     -- the two free-text comment columns are deliberately not loaded
 );
-COMMENT ON TABLE raw.order_reviews IS 'Olist reviews, free-text columns dropped for privacy (SEC-6). Existence of a row = the order reached the final funnel stage.';
+COMMENT ON TABLE raw.order_reviews IS 'Olist reviews, free-text columns dropped for privacy. Existence of a row = the order reached the final funnel stage.';
 
 -- ============================================================== Olist: products
 CREATE TABLE IF NOT EXISTS raw.products (

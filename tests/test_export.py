@@ -1,7 +1,7 @@
 """Tests for the CSV export (milestone M5).
 
 The export is the one place where data LEAVES the database for a world-visible destination:
-published Tableau Public workbooks are public by design (D-002). So these tests are about the
+published Tableau Public workbooks are public by design. So these tests are about the
 three guards in `src/export/export_views.py`, not about formatting.
 """
 
@@ -56,7 +56,7 @@ def test_a_view_outside_the_allowlist_is_refused():
 
 
 def test_views_holding_identifiers_are_not_exportable():
-    """The two person-level building blocks must never be in the allowlist (SEC-11)."""
+    """The two person-level building blocks must never be in the allowlist."""
     assert "v_customer_first_order" not in EXPORTABLE_VIEWS
     assert "v_customer_order_counts" not in EXPORTABLE_VIEWS
 

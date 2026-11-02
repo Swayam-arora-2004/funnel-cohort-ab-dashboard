@@ -40,6 +40,6 @@ GROUP BY a.cohort_month, a.months_since_first_order, s.new_customers
 ORDER BY a.cohort_month, months_since;
 
 COMMENT ON VIEW analytics.v_cohort_retention IS
-  'Retention triangle: of each acquisition-month cohort, the share still ordering N months later. months_since = 0 is the acquisition month and is 100% by construction. Expect very low retention - Olist is a near-single-purchase marketplace, and that is a finding, not a bug (D-007).';
+  'Retention triangle: of each acquisition-month cohort, the share still ordering N months later. months_since = 0 is the acquisition month and is 100% by construction. Expect very low retention - Olist is a near-single-purchase marketplace, and that is a finding, not a bug.';
 
 \echo 'v_cohort_retention ready'

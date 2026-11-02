@@ -79,7 +79,7 @@ def export_one(view: str, exports_dir) -> int:
     if leaked:
         raise ExportError(
             f"{view} contains identifier column(s) {leaked}. Exports are world-visible once "
-            "published (D-002), so they must be aggregates only. Aggregate the view or add an "
+            "published, so they must be aggregates only. Aggregate the view or add an "
             "explicit projection before exporting it."
         )
 
@@ -105,7 +105,7 @@ def main() -> None:
         sys.exit(1)
     total = sum(results.values())
     print(f"\n  {len(results)} files written, {total:,} rows in total")
-    print("  Next: docs/BI_HANDOFF.md has the Tableau Public steps.\n")
+    print("  Load these into a BI tool as separate sources -- they are at different grains.\n")
 
 
 if __name__ == "__main__":

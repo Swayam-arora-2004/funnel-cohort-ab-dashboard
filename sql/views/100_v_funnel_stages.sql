@@ -53,6 +53,6 @@ FROM stages_per_order
 GROUP BY order_month, stage_order, stage_name;
 
 COMMENT ON VIEW analytics.v_funnel_stages IS
-  'How many orders reach each fulfilment stage (placed -> approved -> carrier -> delivered -> reviewed), per month. Stages are CUMULATIVE: reaching stage N requires passing every earlier stage, which the source data does not guarantee on its own. A NULL lifecycle timestamp is real drop-off, not missing data. Fulfilment funnel, not acquisition (D-006).';
+  'How many orders reach each fulfilment stage (placed -> approved -> carrier -> delivered -> reviewed), per month. Stages are CUMULATIVE: reaching stage N requires passing every earlier stage, which the source data does not guarantee on its own. A NULL lifecycle timestamp is real drop-off, not missing data. Fulfilment funnel, not acquisition.';
 
 \echo 'v_funnel_stages ready'

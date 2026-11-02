@@ -90,9 +90,15 @@ while the app cannot touch `raw` directly. There are tests for both halves of th
 | Size | 99,441 orders, 2016-09 to 2018-10 | 13,979,592 users |
 | Licence | CC BY-NC-SA 4.0 | CC BY-NC-SA 4.0 |
 
-Thanks to Olist and to Criteo AI Lab for publishing these. Both licences require attribution
-and neither permits commercial use. `docs/DATA.md` has the download details and the data-quality
-notes.
+Attribution, which both licences require:
+
+- *Brazilian E-Commerce Public Dataset by Olist*, published by Olist, licensed under
+  [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
+- *Criteo Uplift Prediction Dataset v2.1*, published by Criteo AI Lab, licensed under
+  [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
+
+Neither permits commercial use. This project is non-commercial and the data is not
+redistributed here — the commands above download it from the original sources.
 
 One thing worth stating plainly: this is a fulfilment funnel, not a marketing one. Olist
 publishes no clickstream data, so "visit → signup → cart → purchase" is not derivable from it.
@@ -107,7 +113,7 @@ monotonically non-increasing, retention never exceeds 100%, the cohorts partitio
 base, running totals never decrease, category shares sum to 100% within a month. The statistics
 module is checked against statsmodels to 1e-10 plus two hand-worked examples.
 
-One test re-derives every figure printed in `docs/` from the database and fails if any of them
+One test re-derives every published figure from the database and fails if any of them
 stops matching, which is what keeps the documentation honest.
 
 The source data is not in the repo — 425 MB and licence-restricted — so in CI the data-dependent
@@ -121,8 +127,7 @@ sql/ddl/    schemas, roles, tables, indexes
 sql/views/  12 views, each with a COMMENT ON VIEW
 src/        config, db, load, analysis, export
 tests/
-docs/       DATA.md, QUERIES.md
 ```
 
-`docs/QUERIES.md` is the place to start. It has each view's business question, its measured
-output, and the bug it caught.
+Every view carries a `COMMENT ON VIEW` saying which business question it answers, so
+`\dv+ analytics.*` in psql is a reasonable table of contents.

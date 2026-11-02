@@ -6,8 +6,8 @@ failure modes that matter:
 
   1. **A query the read-only role cannot run.** This is not hypothetical -- an earlier version
      of `repeat_purchase_rate()` joined `raw.orders` directly and failed in the browser with
-     "permission denied for schema raw". The privilege boundary (SEC-5) caught a real mistake,
-     and the fix was to move the logic into a view where it belonged anyway (D-004).
+     "permission denied for schema raw". The privilege boundary caught a real mistake,
+     and the fix was to move the logic into a view where it belonged anyway.
 
   2. **A chart that raises while being built.** A Plotly figure is constructed eagerly, so a
      bad column name or a shape mismatch raises here rather than rendering an empty panel.
@@ -73,7 +73,7 @@ def test_every_chart_builds(dashboard_modules):
 
 
 def test_ab_metric_is_allowlisted(dashboard_modules):
-    """An unknown metric is rejected before it reaches the query (SEC-3)."""
+    """An unknown metric is rejected before it reaches the query."""
     charts, queries = dashboard_modules
     with pytest.raises(ValueError, match="unknown metric"):
         queries.ab_summary("conversion'; DROP TABLE raw.orders; --")

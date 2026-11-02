@@ -14,7 +14,7 @@ JOIN raw.customers c ON c.customer_id = o.customer_id
 GROUP BY c.customer_unique_id;
 
 COMMENT ON VIEW analytics.v_customer_first_order IS
-  'One row per real customer (customer_unique_id) with their first order date and cohort month. Building block for the cohort views; keyed on customer_unique_id, not customer_id (D-007).';
+  'One row per real customer (customer_unique_id) with their first order date and cohort month. Building block for the cohort views; keyed on customer_unique_id, not customer_id.';
 
 CREATE OR REPLACE VIEW analytics.v_cohort_sizes AS
 SELECT

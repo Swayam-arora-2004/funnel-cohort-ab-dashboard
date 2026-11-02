@@ -27,6 +27,6 @@ SELECT
 FROM analytics.v_customer_order_counts;
 
 COMMENT ON VIEW analytics.v_repeat_purchase_summary IS
-  'The honest single number for retention: how many customers ever placed a second order. Expect a low figure - Olist is a near-single-purchase marketplace, and that is a finding, not a bug (D-007).';
+  'The honest single number for retention: how many customers ever placed a second order. Expect a low figure - Olist is a near-single-purchase marketplace, and that is a finding, not a bug.';
 
 \echo 'v_repeat_purchase_summary ready'

@@ -188,7 +188,7 @@ def test_mde_scales_as_inverse_square_root_of_n():
     assert quad.mde_pp == pytest.approx(base.mde_pp / 2, rel=1e-9)
 
 
-# --------------------------------------------------------------- input validation (SEC-3)
+# --------------------------------------------------------------- input validation
 
 
 @pytest.mark.parametrize(
@@ -234,7 +234,7 @@ def test_significant_negative_result_says_do_not_ship():
 
 
 def test_caveats_mention_power_and_multiple_metrics():
-    """FR-14: sample size, power and the two-metric caveat must always be stated."""
+    """Sample size, power and the two-metric caveat must always be stated."""
     joined = " ".join(two_proportion_ztest(**CASE_SMALL).caveats).lower()
     assert "80% power" in joined
     assert "bonferroni" in joined
@@ -253,7 +253,7 @@ def test_caveats_mention_power_and_multiple_metrics():
 
 @pytest.mark.db
 def test_report_runs_both_metrics(ro_engine):  # noqa: ARG001 - the fixture forces the skip
-    """Both outcomes are always returned, so neither can be cherry-picked (FR-14, D-016)."""
+    """Both outcomes are always returned, so neither can be cherry-picked."""
     from src.analysis.ab_report import METRICS, run_all
 
     results = run_all()
@@ -266,7 +266,7 @@ def test_report_arms_partition_the_users(ro_engine):  # noqa: ARG001 - forces th
     """Per metric, the two arms must account for every user exactly once.
 
     Reading the total from the source table rather than hardcoding it means this test survives
-    a dataset swap -- which is exactly what just happened (D-023).
+    a dataset swap -- which is exactly what just happened.
     """
     from sqlalchemy import text
 
@@ -282,7 +282,7 @@ def test_report_arms_partition_the_users(ro_engine):  # noqa: ARG001 - forces th
 
 @pytest.mark.db
 def test_report_rejects_an_unknown_metric(ro_engine):  # noqa: ARG001 - forces the skip
-    """Metric names are validated against an allowlist before reaching the query (SEC-3)."""
+    """Metric names are validated against an allowlist before reaching the query."""
     from src.analysis.ab_report import run_metric
 
     with pytest.raises(ValueError, match="unknown metric"):

@@ -1,4 +1,4 @@
-# The only commands a user needs. See docs/TECH_SPECS.md section 8.
+# The only commands needed to build, load, test and run the project.
 .PHONY: help db-up db-wait db-init load views test lint security app export db-down db-nuke psql
 
 SHELL := /bin/bash
@@ -18,7 +18,7 @@ export
 VENV := ./.venv/bin
 
 # Role names and passwords are passed as psql variables so they never appear in a .sql
-# file (SEC-2). ON_ERROR_STOP makes a failed DDL statement fail the whole make target.
+# file. ON_ERROR_STOP makes a failed DDL statement fail the whole make target.
 PSQL := docker compose exec -T -e PGPASSWORD=$(POSTGRES_PASSWORD) db \
         psql -v ON_ERROR_STOP=1 -U $(POSTGRES_USER) -d $(PG_DB) \
         -v loader_user=$(LOADER_USER) -v loader_password=$(LOADER_PASSWORD) \
@@ -54,7 +54,7 @@ lint: ## ruff lint + format check
 	$(VENV)/ruff check .
 	$(VENV)/ruff format --check .
 
-security: ## bandit + pip-audit (SEC-12)
+security: ## bandit + pip-audit
 	$(VENV)/bandit -q -r src app
 	$(VENV)/pip-audit -r requirements.lock.txt
 

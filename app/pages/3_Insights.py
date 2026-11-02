@@ -94,7 +94,7 @@ are spread evenly, it is a platform-wide logistics-capacity problem. Do not laun
 payment-retry project on this evidence.
             """
         )
-        st.caption("Source: `analytics.v_funnel_dropoff` · see `docs/QUERIES.md` §1–2")
+        st.caption("Source: `analytics.v_funnel_dropoff`")
 
     # ================================================================ FINDING 2
     with tab2:
@@ -141,10 +141,7 @@ first: at this base rate, detecting even a 0.5 pp lift needs a large sample, whi
 the calculation the A/B page's minimum-detectable-effect figure demonstrates.
             """
         )
-        st.caption(
-            "Source: `analytics.v_cohort_retention`, `analytics.v_customer_first_order` · "
-            "see `docs/QUERIES.md` §3–5"
-        )
+        st.caption("Source: `analytics.v_cohort_retention` and `analytics.v_customer_first_order`")
 
     # ================================================================ FINDING 3
     with tab3:
@@ -201,10 +198,7 @@ real cost data before changing budget.
             """
         )
 
-        st.caption(
-            "Source: `analytics.v_ab_summary` + `src/analysis/ab_test.py` · "
-            "see `docs/QUERIES.md` §10"
-        )
+        st.caption("Source: `analytics.v_ab_summary` and `src/analysis/ab_test.py`")
 
     st.caption(
         "**Two datasets, stated plainly.** Findings 1 and 2 come from the Olist Brazilian "

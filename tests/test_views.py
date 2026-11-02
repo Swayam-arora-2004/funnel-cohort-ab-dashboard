@@ -1,6 +1,6 @@
 """Invariant tests for the analytics views (milestone M2).
 
-These do not assert specific business numbers -- those live in docs/QUERIES.md and would
+These do not assert specific business numbers -- those would
 change if the source data were refreshed. They assert properties that must hold for the SQL
 to be CORRECT, which is what catches a broken query after an edit.
 
@@ -54,7 +54,7 @@ def test_view_returns_rows(ro_engine, view):
 
 @pytest.mark.parametrize("view", ALL_VIEWS)
 def test_view_has_a_comment(ro_engine, view):
-    """FR-7: every view documents its business question. An undocumented view fails here."""
+    """Every view documents its business question. An undocumented view fails here."""
     comment = _scalar(
         ro_engine,
         "SELECT obj_description(format('analytics.%I', :v)::regclass, 'pg_class')",
@@ -64,7 +64,7 @@ def test_view_has_a_comment(ro_engine, view):
 
 
 def test_at_least_six_views_exist(ro_engine):
-    """FR-7 requires at least six documented views."""
+    """There should be a documented view per business question, not one giant query."""
     count = _scalar(
         ro_engine,
         "SELECT count(*) FROM information_schema.views WHERE table_schema = 'analytics'",
@@ -249,7 +249,7 @@ def test_ab_user_totals_match_the_source_table(ro_engine):
     """Per metric, the two arms must account for every user exactly once.
 
     The expected total is read from the source table rather than hardcoded, so this survives a
-    dataset swap -- which is exactly what happened when the experiment changed (D-023).
+    dataset swap -- which is exactly what happened when the experiment changed.
     """
     expected = _scalar(ro_engine, "SELECT sum(users) / 2 FROM analytics.v_ab_summary")
     rows = _rows(
@@ -303,7 +303,7 @@ def test_dashboard_role_can_read_every_view_it_needs(ro_engine):
     """The app must never need a privilege it does not have.
 
     This test exists because an earlier version of app/components/queries.py joined raw.orders
-    directly and failed at runtime with "permission denied for schema raw" (SEC-5). Asserting
+    directly and failed at runtime with "permission denied for schema raw". Asserting
     that every view the dashboard reads is reachable as dashboard_ro turns that class of
     mistake into a test failure rather than a broken page.
     """

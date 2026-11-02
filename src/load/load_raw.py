@@ -55,7 +55,7 @@ def read_csv(contract: CsvContract, raw_dir) -> pd.DataFrame:
     if not path.exists():
         raise LoadError(
             f"{contract.filename} not found under {raw_dir}. "
-            "See docs/DATA.md for the download commands."
+            "See the README for the download commands."
         )
 
     # boolean and Int64 cannot go straight to read_csv: the files hold TRUE/FALSE strings and
@@ -91,7 +91,7 @@ def read_csv(contract: CsvContract, raw_dir) -> pd.DataFrame:
     present_drops = [c for c in contract.drop_columns if c in frame.columns]
     if present_drops:
         frame = frame.drop(columns=present_drops)
-        log.info("  dropped %s (SEC-6 / FR-4)", ", ".join(present_drops))
+        log.info("  dropped %s", ", ".join(present_drops))
 
     for col, dtype in contract.dtypes.items():
         if dtype == "boolean":

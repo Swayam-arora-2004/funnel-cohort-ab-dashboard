@@ -1,24 +1,24 @@
-# Direct dependencies only, pinned exactly (SEC-8). See docs/TECH_SPECS.md section 1.
+# Direct dependencies, pinned exactly.
 # Each package was confirmed to exist on pypi.org under its official owner before adding.
 #
 # Versions were chosen by UPGRADING and re-running pip-audit until it reported
-# "No known vulnerabilities found", not by picking versions from memory. See DECISIONS D-012:
+# "No known vulnerabilities found", not by picking versions from memory:
 # the first draft of this file pinned May-2024 versions and pip-audit found 56 known
 # vulnerabilities across 5 packages. Re-run `make security` whenever these change.
 
 # --- data loading ---
-pandas==3.1.0             # CSV reading with explicit dtypes (FR-3)
-SQLAlchemy==2.1.6         # text() with bound parameters; the only SQL execution path (SEC-4)
+pandas==3.1.0             # CSV reading with explicit dtypes
+SQLAlchemy==2.1.6         # text() with bound parameters; the only SQL execution path
 psycopg2-binary==2.9.13   # PostgreSQL driver; also provides copy_expert for the bulk COPY load
 python-dotenv==1.2.4      # loads .env into the environment; read only in src/config.py
 
 # --- statistics ---
-statsmodels==0.15.0       # proportions_ztest, proportion_confint, NormalIndPower (FR-12, FR-14)
+statsmodels==0.15.0       # proportions_ztest, proportion_confint, NormalIndPower
 scipy==1.17.1             # pinned explicitly although statsmodels pulls it in
 
 # --- dashboard ---
-streamlit==1.66.1         # the deployable demo (FR-16..FR-21)
-plotly==7.1.0             # go.Funnel chart and px.imshow cohort heatmap (FR-17, FR-18)
+streamlit==1.66.1         # the dashboard
+plotly==7.1.0             # go.Funnel chart and px.imshow cohort heatmap
 
 # --- transitive packages pinned deliberately ---
 # Both arrive via streamlit. They are pinned here because the versions streamlit would
@@ -27,7 +27,7 @@ plotly==7.1.0             # go.Funnel chart and px.imshow cohort heatmap (FR-17,
 pillow==13.0.0
 protobuf==7.36.2
 
-# --- quality gates (SEC-12) ---
+# --- quality gates ---
 pytest==9.2.0
 ruff==0.17.3
 bandit==1.9.4

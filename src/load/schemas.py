@@ -150,9 +150,9 @@ CSV_CONTRACTS: tuple[CsvContract, ...] = (
 INTENTIONALLY_NOT_LOADED: dict[str, str] = {
     "criteo columns f0..f11": (
         "11 anonymised features; no requirement needs them, and at 25M rows "
-        "they would cost gigabytes for nothing (FR-4)"
+        "they would cost gigabytes for nothing"
     ),
-    "olist/olist_geolocation_dataset.csv": "precise lat/long, personal-data risk, unused (SEC-6)",
+    "olist/olist_geolocation_dataset.csv": "precise lat/long, personal-data risk, unused",
     "olist/olist_sellers_dataset.csv": "no numbered requirement needs seller attributes",
     "olist/product_category_name_translation.csv": (
         "category names are shown in the source language"

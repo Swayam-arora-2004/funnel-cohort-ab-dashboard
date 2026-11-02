@@ -1,5 +1,5 @@
-# PostgreSQL only. Python runs on the host (DECISIONS D-010).
-# Security notes (SEC-9):
+# PostgreSQL only; Python runs on the host.
+# Security notes:
 #   - official image pinned by tag; it already runs as the non-root `postgres` user
 #   - port bound to 127.0.0.1 so the database is not reachable from the network
 #   - password comes from .env at runtime; nothing is baked into an image layer

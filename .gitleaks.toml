@@ -1,4 +1,4 @@
-# gitleaks configuration (SEC-2).
+# gitleaks configuration.
 # Extends the default ruleset; only adds an allowlist for intentional placeholders.
 [extend]
 useDefault = true
@@ -7,7 +7,6 @@ useDefault = true
 description = "Committed placeholder values that are not real secrets"
 paths = [
   '''\.env\.example$''',
-  '''docs/TECH_SPECS\.md$''',   # documents variable names with placeholder examples
   '''\.gitleaks\.toml$''',
 ]
 regexes = [

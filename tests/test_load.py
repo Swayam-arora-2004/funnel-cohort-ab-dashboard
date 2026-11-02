@@ -3,11 +3,11 @@
 These are not decorative. Each one guards a specific requirement or a specific way this load
 could go wrong without anybody noticing:
 
-  * row counts        -- a truncated download would otherwise pass silently (FR-3)
-  * idempotency       -- the whole point of truncate-then-load (FR-2)
-  * dropped columns   -- proves the privacy exclusion actually happened (SEC-6, FR-4)
-  * orphan counts     -- we chose not to declare FKs, so we must measure instead (D-011)
-  * privilege boundary-- proves dashboard_ro really cannot write or read raw (SEC-5)
+  * row counts        -- a truncated download would otherwise pass silently
+  * idempotency       -- the whole point of truncate-then-load
+  * dropped columns   -- proves the privacy exclusion actually happened
+  * orphan counts     -- we chose not to declare FKs, so we must measure instead
+  * privilege boundary-- proves dashboard_ro really cannot write or read raw
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from src.load.schemas import CSV_CONTRACTS
 
 pytestmark = pytest.mark.db
 
-# Measured on 2026-11-02 from the Kaggle downloads documented in docs/DATA.md.
+# Measured on 2026-11-02 from the downloads described in the README.
 # These are exact, not approximate: if a number here changes, the input data changed.
 EXPECTED_ROWS = {
     "raw.customers": 99_441,
@@ -41,7 +41,7 @@ def _scalar(engine, sql: str, **params) -> int:
 @pytest.mark.parametrize(("table", "expected"), sorted(EXPECTED_ROWS.items()))
 def test_row_counts(rw_engine, table, expected):
     """Every table holds exactly the documented number of rows."""
-    # Table names come from this module's constants, never from input (SEC-4).
+    # Table names come from this module's constants, never from input.
     assert _scalar(rw_engine, f"SELECT count(*) FROM {table}") == expected  # noqa: S608
 
 
@@ -51,7 +51,7 @@ def test_every_contract_has_an_expected_count():
 
 
 def test_load_is_idempotent(rw_engine):
-    """Loading one table twice leaves the same number of rows, not double (FR-2).
+    """Loading one table twice leaves the same number of rows, not double.
 
     We reload the smallest table only, so the test stays fast.
     """
@@ -72,7 +72,7 @@ def test_load_is_idempotent(rw_engine):
 
 
 def test_privacy_columns_are_absent(rw_engine):
-    """The free-text review columns were never written to the database (SEC-6, FR-4)."""
+    """The free-text review columns were never written to the database."""
     with rw_engine.connect() as conn:
         columns = {
             row[0]
@@ -89,7 +89,7 @@ def test_privacy_columns_are_absent(rw_engine):
 
 
 def test_geolocation_table_does_not_exist(rw_engine):
-    """We deliberately never load precise location data (SEC-6)."""
+    """We deliberately never load precise location data."""
     exists = _scalar(
         rw_engine,
         "SELECT count(*) FROM information_schema.tables "
@@ -99,7 +99,7 @@ def test_geolocation_table_does_not_exist(rw_engine):
 
 
 def test_no_negative_money(rw_engine):
-    """Prices and payments are never negative -- a bounds check on untrusted input (SEC-3)."""
+    """Prices and payments are never negative -- a bounds check on untrusted input."""
     assert _scalar(rw_engine, "SELECT count(*) FROM raw.order_items WHERE price < 0") == 0
     negative_payments = _scalar(
         rw_engine, "SELECT count(*) FROM raw.order_payments WHERE payment_value < 0"
@@ -129,7 +129,7 @@ def test_criteo_randomisation_split_is_as_published(rw_engine):
 
 
 def test_criteo_has_no_identifier_column(rw_engine):
-    """The strongest form of SEC-6: there is no personal data in this source to exclude."""
+    """There is no personal data in this source to exclude -- no identifier column exists."""
     with rw_engine.connect() as conn:
         columns = {
             row[0]
@@ -143,7 +143,7 @@ def test_criteo_has_no_identifier_column(rw_engine):
     assert columns == {"treatment", "visit", "conversion", "exposure"}
 
 
-# --------------------------------------------------------------- data quality (D-011)
+# --------------------------------------------------------------- data quality
 # We chose not to declare foreign keys, so these tests MEASURE referential integrity instead
 # of the database enforcing it. A non-zero count is a reportable fact, not necessarily a bug,
 # so each assertion allows the orphans we actually observed and would fail if they grew.
@@ -179,7 +179,7 @@ def test_order_items_reference_known_products(rw_engine):
     assert orphans == 0, f"{orphans} order_items point at a product that does not exist"
 
 
-# --------------------------------------------------------------- privilege boundary (SEC-5)
+# --------------------------------------------------------------- privilege boundary
 
 
 def test_readonly_role_cannot_read_raw(ro_engine):

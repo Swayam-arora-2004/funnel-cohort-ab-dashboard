@@ -33,6 +33,6 @@ CROSS JOIN LATERAL (VALUES
 ORDER BY m.metric, is_control DESC;
 
 COMMENT ON VIEW analytics.v_ab_summary IS
-  'Criteo Uplift incrementality test: users, conversions and rate per arm, for BOTH visit and conversion. Splits on the RANDOM ASSIGNMENT (treatment), not on exposure - exposure is downstream of treatment and splitting on it would destroy the randomisation. Counting only; the z-test, CI and p-value are in src/analysis/ab_test.py. Real randomised experiment, not simulated (FR-15).';
+  'Criteo Uplift incrementality test: users, conversions and rate per arm, for BOTH visit and conversion. Splits on the RANDOM ASSIGNMENT (treatment), not on exposure - exposure is downstream of treatment and splitting on it would destroy the randomisation. Counting only; the z-test, CI and p-value are in src/analysis/ab_test.py. Real randomised experiment, not simulated.';
 
 \echo 'v_ab_summary ready'

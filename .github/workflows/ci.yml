@@ -1,4 +1,4 @@
-# CI gates (SEC-12). A milestone is not done until every job here is green.
+# CI gates. A milestone is not done until every job here is green.
 # No gate may be disabled to make a build pass.
 name: ci
 
@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # gitleaks must see the FULL history, not just the tip (SEC-2)
+          fetch-depth: 0   # gitleaks must see the FULL history, not just the tip
 
       - uses: actions/setup-python@v5
         with:
@@ -53,15 +53,9 @@ jobs:
         # Run the binary directly rather than gitleaks-action@v2.
         #
         # The action derives a commit range from the push event (before..after) and scans only
-        # that range. Two problems with it here. First, SEC-2 requires scanning the **full
-        # history** — a secret committed and then removed in a later push would never appear in
-        # any single push range, which is exactly the case the requirement exists for. The
-        # action was quietly doing a weaker check than the SRS claimed. Second, it breaks
-        # outright after any history rewrite: the `before` commit no longer exists, git reports
-        # "unknown revision", and the step fails with no leak found at all.
-        #
-        # `gitleaks detect` with no range scans every commit reachable from HEAD, which is what
-        # was specified. checkout above already uses fetch-depth: 0 so the history is present.
+        # that range, which misses a secret committed in one push and removed in a later one.
+        # It also breaks after a history rewrite: the `before` commit no longer exists.
+        # `gitleaks detect` with no range scans every commit reachable from HEAD.
         run: |
           curl -sSL -o /tmp/gitleaks.tar.gz \
             https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz

@@ -1,15 +1,15 @@
 # Personal working notes — milestone log, prep notes, task runbook.
-# Not part of the software; the engineering documentation lives in docs/.
+# Not part of the software.
 notes/
 
-# Secrets — never commit (SEC-2)
+# Secrets — never commit
 .env
 .env.local
 *.pem
 *.key
 kaggle.json
 
-# Downloaded source data (see docs/DATA.md) and generated exports
+# Downloaded source data and generated exports
 data/raw/
 exports/
 

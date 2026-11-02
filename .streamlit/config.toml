@@ -2,7 +2,7 @@
 # colour-separation result is only meaningful against the surface the chart actually renders
 # on. Streamlit would otherwise follow the viewer's OS dark-mode setting, which would put the
 # light-validated palette on a dark surface. Pinning the light theme keeps what renders and
-# what was validated the same thing. See DECISIONS D-017.
+# what was validated the same thing.
 [theme]
 base = "light"
 backgroundColor = "#f9f9f7"          # page plane
@@ -13,7 +13,7 @@ font = "sans serif"
 
 [server]
 headless = true
-# SEC-1: bind to loopback only. Streamlit's default binds to every interface, which published
+# Bind to loopback only. Streamlit's default binds to every interface, which published
 # this dashboard on the local network (and, behind a permissive router, beyond it). This is a
 # local demo with no authentication, so it must not be reachable from another machine.
 address = "127.0.0.1"

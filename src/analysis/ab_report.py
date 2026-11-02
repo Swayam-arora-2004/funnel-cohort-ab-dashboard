@@ -2,7 +2,7 @@
 
 This file exists so that `src/analysis/ab_test.py` can stay completely free of I/O. All the
 database reading happens here; all the arithmetic happens there. That split is what lets the
-statistics be unit-tested against textbook values without a database (D-004).
+statistics be unit-tested against textbook values without a database.
 
 Run it directly to print the readout:
 
@@ -17,7 +17,7 @@ from src.analysis.ab_test import ABResult, format_p_value, two_proportion_ztest
 from src.db import engine_ro, fetch_df
 
 # The metrics the view exposes. User input is validated against this allowlist rather than
-# being interpolated anywhere (SEC-3, SEC-4).
+# being interpolated anywhere.
 METRICS: tuple[str, ...] = ("visit", "conversion")
 
 # Human-readable labels for the dashboard and the printed report.
@@ -41,7 +41,7 @@ def run_metric(metric: str) -> ABResult:
 
     `metric` is checked against METRICS before it reaches the query. The query itself binds it
     as a parameter, so even an unvalidated value could not alter the SQL -- the allowlist is a
-    second layer, and it also gives a clear error instead of an empty result (SEC-3, SEC-4).
+    second layer, and it also gives a clear error instead of an empty result.
     """
     if metric not in METRICS:
         raise ValueError(f"unknown metric {metric!r}; expected one of {METRICS}")
@@ -67,7 +67,7 @@ def run_metric(metric: str) -> ABResult:
 
 
 def run_all() -> dict[str, ABResult]:
-    """Run every metric. Both are always reported so neither can be cherry-picked (FR-14)."""
+    """Run every metric. Both are always reported so neither can be cherry-picked."""
     return {metric: run_metric(metric) for metric in METRICS}
 
 

@@ -41,7 +41,7 @@ def available_date_range() -> tuple[date, date]:
     return frame.first_month.iloc[0], frame.last_month.iloc[0]
 
 
-# ---------------------------------------------------------------- KPI tiles (FR-16)
+# ---------------------------------------------------------------- KPI tiles
 
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS)
@@ -86,7 +86,7 @@ def delivery_completion_rate(start: date, end: date) -> float:
     return float(value) if value is not None else 0.0
 
 
-# ---------------------------------------------------------------- funnel (FR-17)
+# ---------------------------------------------------------------- funnel
 
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS)
@@ -122,7 +122,7 @@ def funnel_dropoff() -> pd.DataFrame:
     return _run("SELECT * FROM analytics.v_funnel_dropoff ORDER BY stage_order")
 
 
-# ---------------------------------------------------------------- cohorts (FR-18)
+# ---------------------------------------------------------------- cohorts
 
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS)
@@ -159,7 +159,7 @@ def repeat_purchase_rate() -> pd.Series:
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS)
 def revenue_by_month(start: date, end: date) -> pd.DataFrame:
-    """Monthly revenue, orders and AOV. Sparse edge months excluded (D-014)."""
+    """Monthly revenue, orders and AOV. Sparse edge months excluded."""
     return _run(
         """
         SELECT order_month, orders, revenue, avg_order_value, avg_items_per_order
@@ -192,7 +192,7 @@ def top_categories(limit: int = 10) -> pd.DataFrame:
     )
 
 
-# ---------------------------------------------------------------- A/B (FR-19)
+# ---------------------------------------------------------------- A/B
 
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS)
