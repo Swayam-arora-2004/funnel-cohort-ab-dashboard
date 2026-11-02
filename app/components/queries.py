@@ -1,17 +1,10 @@
 """Every query the dashboard runs. No SQL text exists anywhere else under app/.
 
-Two rules this module exists to enforce:
+All of it is parameterised and all of it goes through engine_ro(), which connects as
+dashboard_ro -- SELECT on analytics, nothing on raw.
 
-1. **Parameterised only (SEC-4).** Every value the user chose arrives through `params`, never
-   through string formatting. `fetch_df` refuses a plain string, so an f-string query is a
-   TypeError rather than a silent vulnerability.
-
-2. **Read-only (SEC-5).** Everything goes through `engine_ro()`, which connects as
-   `dashboard_ro` -- a role with SELECT on `analytics` and no privileges at all on `raw`.
-
-Results are cached with `st.cache_data`. The TTL is there so a reload after `make load`
-eventually shows new data without needing a restart; the cache key is the function arguments,
-so changing the date filter correctly misses the cache.
+Cached with st.cache_data; the TTL means a reload after `make load` picks up new data without
+a restart.
 """
 
 from __future__ import annotations
@@ -26,8 +19,7 @@ from src.db import engine_ro, fetch_df
 
 CACHE_TTL_SECONDS = 600
 
-# Metrics the A/B page may ask for. User input is checked against this allowlist before it
-# reaches the query -- the binding already makes it safe, this gives a clear error too (SEC-3).
+# checked against this allowlist before reaching the query, for a clear error
 AB_METRICS: tuple[str, ...] = ("visit", "conversion")
 
 
@@ -40,11 +32,8 @@ def _run(sql: str, params: dict | None = None) -> pd.DataFrame:
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS)
 def available_date_range() -> tuple[date, date]:
-    """The first and last month present in the data, for the date picker's bounds.
-
-    Read from the data rather than hardcoded, so the picker cannot offer a range that does not
-    exist (SEC-3: constrain input at the boundary rather than validating it afterwards).
-    """
+    """Bounds for the date picker, read from the data so it cannot offer a month that is
+    not there."""
     frame = _run(
         "SELECT min(order_month) AS first_month, max(order_month) AS last_month "
         "FROM analytics.v_revenue_by_month WHERE NOT is_sparse_month"
@@ -57,11 +46,10 @@ def available_date_range() -> tuple[date, date]:
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS)
 def kpi_totals(start: date, end: date) -> pd.Series:
-    """Totals for the selected months: orders, revenue, AOV.
+    """Orders, revenue and AOV for the selected months.
 
-    Summing the monthly rows is exact for orders and revenue. AOV is recomputed as
-    revenue / orders rather than averaged -- averaging monthly AOVs would weight a quiet month
-    the same as a busy one and give a different, wrong number.
+    AOV is recomputed from the totals, not averaged across months -- averaging would weight a
+    quiet month the same as a busy one.
     """
     frame = _run(
         """
@@ -81,11 +69,8 @@ def kpi_totals(start: date, end: date) -> pd.Series:
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS)
 def delivery_completion_rate(start: date, end: date) -> float:
-    """Share of orders placed in the window that completed the whole funnel.
-
-    Reads the funnel view so it uses the same cumulative stage definition as the funnel chart;
-    computing it separately here is how two numbers on one page start to disagree.
-    """
+    """Share of orders that completed the whole funnel. Reads the funnel view, so it uses the
+    same stage definition as the chart."""
     frame = _run(
         """
         SELECT
@@ -108,9 +93,8 @@ def delivery_completion_rate(start: date, end: date) -> float:
 def funnel_stages(start: date, end: date) -> pd.DataFrame:
     """Stage counts for the selected months, with step and cumulative conversion.
 
-    The percentages are recomputed here because the stage COUNTS can be summed across months
-    but the RATES cannot -- averaging monthly conversion rates would weight months equally
-    regardless of volume. The stage definition itself still lives only in SQL.
+    Counts sum across months; rates do not, so the percentages are recomputed from the summed
+    counts. The stage definition itself stays in SQL.
     """
     frame = _run(
         """
@@ -145,9 +129,8 @@ def funnel_dropoff() -> pd.DataFrame:
 def cohort_retention(min_cohort_size: int = 1000, max_months: int = 12) -> pd.DataFrame:
     """Retention matrix, restricted to cohorts large enough to mean anything.
 
-    `min_cohort_size` is not cosmetic. The 2016-12 cohort contains ONE customer, so if that
-    person returns the cohort reads 100% and drags any average up tenfold (D-014). Filtering
-    small cohorts is the difference between a 5.22% headline and the real sub-1% figure.
+    The 2016-12 cohort has one customer, so one repeat purchase reads as 100% and drags an
+    unweighted average up tenfold -- 5.22% against a real sub-1%.
     """
     return _run(
         """
@@ -163,13 +146,10 @@ def cohort_retention(min_cohort_size: int = 1000, max_months: int = 12) -> pd.Da
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS)
 def repeat_purchase_rate() -> pd.Series:
-    """Share of customers who ever placed a second order. The honest headline for retention.
+    """Share of customers who ever placed a second order.
 
-    Reads `analytics.v_repeat_purchase_summary` rather than joining `raw.orders` itself. An
-    earlier version of this function did the join here and failed with "permission denied for
-    schema raw" -- `dashboard_ro` has no rights on `raw` by design (SEC-5). The boundary caught
-    the mistake, and the fix was the right one anyway: the definition of "repeat customer"
-    belongs in the analytics layer where every consumer shares it (D-004).
+    Reads the view rather than joining raw.orders here -- dashboard_ro has no rights on raw,
+    and the definition of "repeat customer" belongs in the analytics layer anyway.
     """
     return _run("SELECT * FROM analytics.v_repeat_purchase_summary").iloc[0]
 
@@ -199,11 +179,7 @@ def revenue_running_total() -> pd.DataFrame:
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS)
 def top_categories(limit: int = 10) -> pd.DataFrame:
-    """Top categories by all-time revenue.
-
-    `limit` is bound as a parameter, not formatted into the string -- LIMIT takes a bind
-    parameter in PostgreSQL, so there is no excuse to interpolate it (SEC-4).
-    """
+    """Top categories by all-time revenue. LIMIT takes a bind parameter, so it is bound."""
     return _run(
         """
         SELECT category, sum(revenue) AS revenue, sum(orders) AS orders
@@ -221,7 +197,7 @@ def top_categories(limit: int = 10) -> pd.DataFrame:
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS)
 def ab_summary(metric: str) -> pd.DataFrame:
-    """Per-variant counts for one metric. `metric` is allowlisted before use (SEC-3)."""
+    """Per-arm counts for one metric. `metric` is allowlisted before use."""
     if metric not in AB_METRICS:
         raise ValueError(f"unknown metric {metric!r}; expected one of {AB_METRICS}")
     return _run(

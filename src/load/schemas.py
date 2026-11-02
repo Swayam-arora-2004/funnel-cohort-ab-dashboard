@@ -1,12 +1,8 @@
-"""The CSV -> table contract: what each file must contain and how it must be typed.
+"""What each source CSV must contain and how it must be typed.
 
-WHY this file exists separately from the loader: this is the boundary where untrusted data
-enters the system (docs/SRS.md threat model, entry point 1). Keeping the contract declarative
-means the validation rules can be read and reviewed without reading loader logic, and a test
-can assert the contract without touching a database.
-
-Columns listed in `drop_columns` are removed BEFORE anything is written, because of SEC-6 /
-FR-4 (free text may contain names; geolocation is precise location data).
+Declarative and separate from the loader, so the validation rules can be reviewed without
+reading loader logic and a test can check them without a database. Columns in drop_columns
+are removed before anything is written.
 """
 
 from __future__ import annotations
@@ -20,22 +16,18 @@ class CsvContract:
 
     filename: str
     table: str
-    # pandas dtypes for the columns we KEEP. Dates are listed separately because pandas needs
-    # parse_dates rather than a dtype for them.
+    # dtypes for the columns we keep; dates need parse_dates, not a dtype
     dtypes: dict[str, str]
     date_columns: tuple[str, ...] = ()
-    # Dropped for privacy or because no numbered requirement needs them (SEC-6, FR-4).
+    # dropped for privacy, or because nothing needs them
     drop_columns: tuple[str, ...] = ()
     # Rename source -> destination, where the source CSV has a typo or an awkward name.
     rename: dict[str, str] = field(default_factory=dict)
     # Columns the destination table generates itself (e.g. a bigserial surrogate key).
     generated_columns: tuple[str, ...] = ()
-    # Read ONLY the contract's columns from the file instead of reading everything and
-    # discarding the rest. For a 25-million-row source with 11 unused feature columns this is
-    # the difference between a few hundred MB of memory and several GB.
+    # read only the contract's columns; on the 14M-row source this saves several GB
     read_only_contract_columns: bool = False
-    # Sanity bounds checked after load, as (column, minimum). Violations are counted and
-    # reported, never silently dropped (SEC-3).
+    # violations are counted and reported, never silently dropped
     non_negative: tuple[str, ...] = ()
     expected_min_rows: int = 1
 
@@ -63,8 +55,7 @@ CSV_CONTRACTS: tuple[CsvContract, ...] = (
             "customer_id": "string",
             "order_status": "string",
         },
-        # These five timestamps are the funnel (DECISIONS D-006). A NULL is not missing data,
-        # it is the signal: the order never reached that stage.
+        # the funnel: a NULL means the order never reached that stage
         date_columns=(
             "order_purchase_timestamp",
             "order_approved_at",
@@ -111,9 +102,9 @@ CSV_CONTRACTS: tuple[CsvContract, ...] = (
             "review_score": "int64",
         },
         date_columns=("review_creation_date", "review_answer_timestamp"),
-        # Free text, may contain customer names. Never written to the database (SEC-6).
+        # free text, may contain customer names -- never written to the database
         drop_columns=("review_comment_title", "review_comment_message"),
-        # review_pk is a bigserial the database fills in; review_id is NOT unique in this CSV.
+        # review_pk is a bigserial; review_id is not unique in this CSV
         generated_columns=("review_pk",),
         expected_min_rows=99_000,
     ),
@@ -123,9 +114,8 @@ CSV_CONTRACTS: tuple[CsvContract, ...] = (
         dtypes={
             "product_id": "string",
             "product_category_name": "string",
-            # The CSV writes these as "225.0" because a few rows are blank, which makes
-            # pandas read the whole column as float. The destination columns are integer, so
-            # they are declared as pandas' nullable Int64 and converted after reading.
+            # blanks make pandas read these as float ("225.0"), so they are declared as
+            # nullable Int64 and converted after reading
             "product_weight_g": "Int64",
             "product_length_cm": "Int64",
             "product_height_cm": "Int64",
@@ -143,16 +133,13 @@ CSV_CONTRACTS: tuple[CsvContract, ...] = (
         filename="criteo/criteo-research-uplift-v2.1.csv.gz",
         table="raw.ab_criteo_uplift",
         dtypes={
-            # The randomised assignment, then the two outcomes, then exposure.
-            # The source writes these as 0/1 integers, not TRUE/FALSE.
+            # the assignment, the two outcomes, then exposure. Written as 0/1, not TRUE/FALSE.
             "treatment": "boolean",
             "visit": "boolean",
             "conversion": "boolean",
             "exposure": "boolean",
         },
-        # The source also carries 11 anonymised features f0..f11. No numbered requirement needs
-        # them, and at 25M rows they would cost gigabytes for nothing (FR-4). Reading only the
-        # four contract columns keeps the load inside a few hundred MB of memory.
+        # the 11 anonymised features f0..f11 are unused and would cost GB at this row count
         read_only_contract_columns=True,
         expected_min_rows=13_900_000,
     ),

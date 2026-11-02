@@ -1,9 +1,7 @@
-"""Insights page: exactly three findings, each with its number, source and action (FR-20).
+"""Three findings, each with its number, its source view and a recommended action.
 
-Every figure on this page is **queried live**, not typed in. That is a deliberate constraint
-(DECISIONS D-009): if a number appears on screen, a named view produced it, and refreshing the
-page re-derives it. Hardcoding "1,637 orders" here would be the easiest possible way for the
-dashboard to start lying after a data refresh.
+Every figure is queried live rather than typed in, so the page cannot drift from the data
+after a reload.
 """
 
 from __future__ import annotations
@@ -32,19 +30,11 @@ st.caption(
     "re-derived with one query."
 )
 
-# A tile's VALUE must stay short -- about 8 characters -- or Streamlit's large metric font
-# truncates it at a narrow window ("1,637 orders" rendered as "1,637 or..." at 1100px). Units
-# move to the label or the caption, which are small enough to carry them. Captions must fit
-# ONE line too, or an uneven tile height breaks the row's bottom alignment.
-# The LABEL has the same constraint, at about 20 characters:
-# "Orders lost: approved → carrier" ellipsised to "Orders lost: approved → c...".
-# Checked at 1100px, 1280px and 1512px rather than assumed.
+# Tile values stay under ~8 characters and labels under ~20, or Streamlit's metric font
+# truncates them at a 1100px window. Units go in the caption.
 #
-# st.metric's `delta` draws an up/down ARROW, which asserts "this went up/down since last
-# period". Most of the second lines on this page are descriptive ("of 96,096 total",
-# "placed -> delivered & reviewed") and nothing moved, so an arrow there is a false claim --
-# and on the drop-off tiles it read as "losses increased", which the data does not say.
-# `delta` is therefore used ONLY for genuine changes; descriptive lines are captions.
+# `delta` draws an up/down arrow, which asserts a change since some previous period. Most of
+# the second lines here are descriptive, so they are captions; only real changes use delta.
 try:
     # ---------------------------------------------------------------- data
     dropoff = queries.funnel_dropoff()
@@ -59,9 +49,8 @@ try:
     completion = stages.loc[5, "pct_of_all_orders"]
     ratio = float(carrier_drop.step_dropoff_pct) / float(payment_drop.step_dropoff_pct)
 
-    # Each finding gets its own TAB rather than stacking into one long page (D-020).
-    # Stacked, the third finding sat ~2,500px down: past the point where the page is still
-    # growing as it renders, and past where a scroll in progress gets yanked backwards.
+    # One tab per finding. Stacked, the third sat ~2,500px down, past the point where the
+    # page is still growing as it renders.
     tab1, tab2, tab3 = st.tabs(
         [
             "1. Logistics, not payments",
@@ -162,11 +151,8 @@ the calculation the A/B page's minimum-detectable-effect figure demonstrates.
         st.subheader("Advertising does cause conversions — and the effect size is small")
         cols = st.columns(2)
         with cols[0].container(border=True):
-            # The only genuine delta on this page: the variant really did move the metric.
-            # delta_color is left at "normal" (negative -> red). It was briefly set to
-            # "inverse", which renders a negative change GREEN -- that is for metrics where
-            # down is good, like cost or churn. Retention falling is bad, so the default is
-            # correct here, and the rendered colour was checked rather than assumed.
+            # delta_color stays "normal" so a drop renders red. "inverse" is for metrics
+            # where down is good, like cost or churn.
             st.metric(
                 "Day-7 retention change",
                 f"{conv.diff_pp:+.2f} pp",
@@ -176,9 +162,7 @@ the calculation the A/B page's minimum-detectable-effect figure demonstrates.
             st.metric("p-value", f"{conv.p_value:.1e}")
             st.caption("survives Bonferroni")
 
-        # The confidence interval gets a FULL-WIDTH tile of its own. Its value is the longest
-        # string on this page and it truncated in a third-width column -- and it is also the
-        # strongest piece of evidence here, so the extra room is not a consolation prize.
+        # full width: the longest value on the page, and the strongest evidence on it
         with st.container(border=True):
             st.metric(
                 "95% confidence interval on the difference",

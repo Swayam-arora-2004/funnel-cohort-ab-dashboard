@@ -1,10 +1,7 @@
-"""A/B test readout (FR-11 to FR-15, FR-19, FR-21).
+"""A/B test readout.
 
-Layout note (D-020): each metric gets its own TAB. This was the tallest page in the app at
-2,742px, and a page that long is genuinely hard to use -- content keeps growing for the first
-~800ms while the charts lay out, so a scroll in progress jumps, and Streamlit's sidebar is its
-own scroll region so a wheel over those 300px moves nothing at all. One screen per tab removes
-the problem rather than documenting it.
+One tab per metric. Stacked this was the tallest page in the app at 2,742px, and content keeps
+growing for the first ~800ms while the charts lay out, so a scroll in progress jumps.
 """
 
 from __future__ import annotations
@@ -28,23 +25,20 @@ st.set_page_config(page_title="A/B Test", page_icon="test_tube", layout="wide")
 
 
 def render_metric(metric: str, result: ABResult) -> None:
-    """One metric's full readout: charts, statistics, recommendation and caveats."""
+    """One metric: charts, statistics, recommendation and caveats."""
     label = ab_report.METRIC_LABELS[metric]
     summary = queries.ab_summary(metric)
 
-    # Significance is stated in WORDS, not by colour alone, and before the charts.
-    # format_p_value is shared with the CLI readout. Formatting it here with ":.6f" printed
-    # "p = 0.000000" for the visit metric, whose true p-value underflows float64 entirely --
-    # which reads like a broken page rather than like overwhelming evidence.
+    # stated in words, not by colour alone, and before the charts
+    # shared with the CLI readout. ":.6f" printed "p = 0.000000" for the visit metric, whose
+    # true p-value underflows float64.
     verdict_word = (
         "Statistically significant" if result.significant else "Not statistically significant"
     )
     st.markdown(f"**{verdict_word}** at α = 0.05 (p {format_p_value(result.p_value)})")
 
-    # The two charts share a row -- both read fine at half width. The statistics TABLE gets the
-    # full width on its own row: squeezed into a side column it clipped at a 1280px window, so
-    # "44.819% (20,034 / 44,700)" rendered as "44.819% (20,034" and the Bonferroni verdict as
-    # "α = 0.025 — does". A table that truncates its own numbers is worse than no table.
+    # the charts share a row; the table gets its own, because in a side column it clipped
+    # "44.819% (20,034 / 44,700)" to "44.819% (20,034"
     left, right = st.columns(2)
     with left:
         st.plotly_chart(charts.ab_comparison_chart(summary, label), width="stretch")

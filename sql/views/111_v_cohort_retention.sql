@@ -1,16 +1,6 @@
--- Business question: of the customers we acquired in a given month, what share came back
---                    and ordered again 1, 2, 3 ... months later?
---
--- This is the classic retention triangle. Read a row left to right to watch one cohort decay.
---
--- HONEST WARNING, stated here and on the dashboard: Olist is a near-single-purchase
--- marketplace. Retention will be very low -- low single-digit percent. That is the real
--- finding about this business, not a bug in the query (DECISIONS D-007). The Insights page
--- reports it as a finding with the measured number.
---
--- months_since = 0 is the acquisition month itself and is always 100% by construction. It is
--- kept because a heatmap with a solid 100% first column makes the decay in the later columns
--- easy to read against a baseline.
+-- Of the customers acquired in a given month, what share ordered again N months later?
+-- Expect very low numbers: Olist is a near-single-purchase marketplace. That is the finding.
+-- months_since = 0 is the acquisition month and is 100% by construction.
 
 \set ON_ERROR_STOP on
 
@@ -27,10 +17,7 @@ WITH customer_orders AS (
                                  ON f.customer_unique_id = c.customer_unique_id
 ),
 activity AS (
-    -- How many whole months after acquisition did this order happen?
-    -- Multiplying the year difference by 12 and adding the month difference is the readable
-    -- way to get a month offset; subtracting dates would give days, which is not what a
-    -- cohort grid is indexed by.
+    -- whole months since acquisition: year difference x 12 plus the month difference
     SELECT
         cohort_month,
         customer_unique_id,
@@ -43,8 +30,7 @@ SELECT
     a.cohort_month,
     a.months_since_first_order::int        AS months_since,
     s.new_customers                        AS cohort_size,
-    -- DISTINCT because a customer placing two orders in the same month is still one
-    -- retained customer, not two.
+    -- DISTINCT: two orders in one month is still one retained customer
     count(DISTINCT a.customer_unique_id)   AS active_customers,
     round(100.0 * count(DISTINCT a.customer_unique_id) / s.new_customers, 2)
         AS retention_pct

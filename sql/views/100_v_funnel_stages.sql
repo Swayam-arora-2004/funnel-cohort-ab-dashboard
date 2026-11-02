@@ -1,33 +1,16 @@
--- Business question: how many orders reach each stage of the fulfilment lifecycle,
---                    and how does that change month to month?
---
--- This is a FULFILMENT funnel, not an acquisition funnel (DECISIONS D-006). Olist has no
--- clickstream data, so "visit -> signup -> cart -> purchase" is not derivable from it and
--- inventing those stages would be fabricating results. What IS real is the five lifecycle
--- timestamps on every order, and the NULLs in them are genuine operational drop-off:
--- a payment that never cleared, a parcel never handed to the carrier, a delivery that failed.
---
--- Grain: one row per (order_month, stage). The dashboard SUMs orders_reaching over the
--- selected months; summing counts across months is exact, so the filter cannot distort it.
+-- How many orders reach each stage of the order lifecycle, per month.
+-- This is a fulfilment funnel, not an acquisition one: Olist publishes no clickstream, so the
+-- stages are the lifecycle timestamps that actually exist and their NULLs are the drop-off.
+-- Grain: one row per (month, stage). Summing counts across months is exact.
 
 \set ON_ERROR_STOP on
 
 CREATE OR REPLACE VIEW analytics.v_funnel_stages AS
 WITH order_flags AS (
-    -- One row per order, with a boolean per stage. Kept separate from the counting step so
-    -- the stage DEFINITIONS are readable in one place.
-    --
-    -- Each flag is CUMULATIVE: "reached stage N" means "passed every stage up to N". That is
-    -- what a funnel means, and in this data it is not merely pedantic -- the source genuinely
-    -- contains out-of-order records, and a non-cumulative definition produced a NEGATIVE
-    -- drop-off. Measured on 2026-11-02:
-    --   * 2,843 orders have a review but no delivery date (605 of them were canceled).
-    --     Olist sends its review survey when the order is placed, not when it arrives, so a
-    --     naive "has a review" stage counted 98,673 reviews against only 96,476 deliveries.
-    --   *    14 orders have a carrier date but no approval date.
-    --   *     1 order has a delivery date but no carrier date.
-    -- These are recorded in docs/DATA.md as data-quality findings rather than silently
-    -- smoothed over. The cumulative AND chain below is what makes the funnel monotonic.
+    -- Flags are CUMULATIVE: reaching stage N requires passing every earlier stage. The
+    -- source has out-of-order records -- 2,843 orders carry a review but no delivery, because
+    -- the survey fires at order time -- so a non-cumulative definition gave a negative
+    -- drop-off.
     SELECT
         date_trunc('month', o.order_purchase_timestamp)::date AS order_month,
         TRUE                                              AS reached_placed,
@@ -46,9 +29,7 @@ WITH order_flags AS (
     FROM raw.orders o
 ),
 stages_per_order AS (
-    -- Turn the five boolean COLUMNS into five ROWS. CROSS JOIN LATERAL (VALUES ...) is the
-    -- standard PostgreSQL way to unpivot; it reads the order_flags row once and emits five
-    -- rows from it, so there is no self-join and no repeated table scan.
+    -- unpivot five boolean columns into five rows, reading each order once
     SELECT
         f.order_month,
         s.stage_order,
@@ -67,8 +48,6 @@ SELECT
     order_month,
     stage_order,
     stage_name,
-    -- count(*) FILTER (WHERE ...) is cleaner than sum(CASE WHEN ... THEN 1 ELSE 0 END) and
-    -- lets PostgreSQL evaluate every stage in a single pass over the rows.
     count(*) FILTER (WHERE reached) AS orders_reaching
 FROM stages_per_order
 GROUP BY order_month, stage_order, stage_name;

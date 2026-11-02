@@ -1,25 +1,9 @@
--- Business question: in the Criteo incrementality test, how many users were in each arm,
---                    how many converted, and what was each arm's rate?
---
--- This view does the COUNTING only. The statistical test (z-test, confidence interval,
--- p-value, power) lives in src/analysis/ab_test.py, because PostgreSQL has no z-test and
--- faking one in SQL would be harder to read and harder to unit-test than ten lines of Python
--- (DECISIONS D-004, D-008).
---
--- The data is a REAL randomised experiment, not simulated (FR-15). Criteo call it an
--- *incrementality test*: a random part of the population is withheld from advertising
--- targeting. That withheld group IS the control arm, which is what makes the comparison
--- causal rather than observational.
---
--- WHY `treatment` AND NOT `exposure`: the source also records whether a user was actually
--- shown an ad. Analysing by exposure would compare people who saw an ad against people who
--- did not -- but being shown an ad is a CONSEQUENCE of the treatment, and the users who get
--- shown ads are systematically different (more active, more targetable). Splitting on it
--- throws away the randomisation and reintroduces exactly the selection bias the experiment
--- was run to avoid. This view splits on the random assignment, which is intention-to-treat.
---
--- Grain: one row per (metric, arm) -- four rows, because two outcomes are reported. Reporting
--- BOTH is deliberate: picking whichever one turned out significant is p-hacking.
+-- Users, conversions and rate per experiment arm, for both outcomes.
+-- Counting only; the z-test and confidence interval are in src/analysis/ab_test.py.
+-- Splits on `treatment` (the random assignment), NOT on `exposure`. Being shown an ad is a
+-- consequence of the treatment, so splitting on it would compare self-selected groups and
+-- destroy the randomisation. This is intention-to-treat.
+-- Both outcomes are returned so neither can be cherry-picked.
 
 \set ON_ERROR_STOP on
 
@@ -36,7 +20,7 @@ WITH per_arm AS (
 SELECT
     m.metric,
     CASE WHEN p.treatment THEN 'treatment' ELSE 'control' END AS variant,
-    -- The withheld group is the control: it is the status quo the change is measured against.
+    -- the withheld group is the control
     (NOT p.treatment)                          AS is_control,
     p.users,
     m.converted,

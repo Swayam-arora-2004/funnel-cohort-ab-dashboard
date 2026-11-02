@@ -1,20 +1,5 @@
--- Business question: what share of customers ever buy a second time?
---
--- This is the single honest headline for retention on this dataset, and it belongs in a view
--- for two independent reasons:
---
---  1. BUSINESS LOGIC LIVES IN SQL (D-004). "Repeat customer" must mean one thing. Defining it
---     in a dashboard query would put a second definition somewhere no CSV export can see.
---
---  2. THE PRIVILEGE BOUNDARY FORCES IT (SEC-5). `dashboard_ro` has no rights on schema `raw`
---     at all. An earlier version of app/components/queries.py computed this by joining
---     raw.orders to raw.customers directly, and the dashboard failed with
---     "permission denied for schema raw". That was the boundary doing its job: it is not
---     possible to accidentally bypass the analytics layer from the app. A view owned by the
---     superuser can read `raw` on the caller's behalf, which is exactly the controlled
---     indirection we want.
---
--- Keyed on customer_unique_id, not customer_id (D-007).
+-- What share of customers ever buy a second time? The honest headline for retention.
+-- Lives in a view, not a dashboard query: dashboard_ro has no access to raw at all.
 
 \set ON_ERROR_STOP on
 

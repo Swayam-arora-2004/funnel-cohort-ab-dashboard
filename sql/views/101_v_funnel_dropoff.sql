@@ -1,12 +1,5 @@
--- Business question: between which two consecutive stages do we lose the most orders,
---                    and how big is that loss?
---
--- This is the view that actually answers "where should we focus?". It uses LAG to put each
--- stage next to the one before it, which is the natural fit: a drop-off is by definition a
--- comparison between neighbouring rows, and a window function compares rows without a
--- self-join.
---
--- Grain: one row per stage, across the whole dataset (all months combined).
+-- Where do we lose the most orders? All-time stage-to-stage drop-off.
+-- LAG puts each stage next to the previous one without a self-join.
 
 \set ON_ERROR_STOP on
 
@@ -25,11 +18,9 @@ with_previous AS (
         stage_order,
         stage_name,
         orders_reaching,
-        -- LAG looks at the previous row in stage order. For stage 1 there is no previous row,
-        -- so this is NULL and every rate below is correctly NULL rather than a fake 100%.
+        -- NULL for stage 1, so the rates below are correctly NULL rather than a fake 100%
         lag(orders_reaching) OVER (ORDER BY stage_order) AS previous_stage_orders,
-        -- FIRST_VALUE gives stage 1's count on every row, so we can express each stage as a
-        -- share of the top of the funnel without a second query.
+        -- stage 1's count on every row, so each stage can be shown as a share of the entry
         first_value(orders_reaching) OVER (ORDER BY stage_order) AS funnel_entry_orders
     FROM totals
 )
@@ -40,8 +31,7 @@ SELECT
     previous_stage_orders,
     -- Orders lost at THIS step.
     previous_stage_orders - orders_reaching AS dropped_orders,
-    -- Of those who reached the previous stage, what share continued? The 100.0 forces numeric
-    -- division; with two integers PostgreSQL would do integer division and return 0.
+    -- 100.0 forces numeric division; two integers would floor to 0
     round(100.0 * orders_reaching / nullif(previous_stage_orders, 0), 2)
         AS step_conversion_pct,
     round(100.0 * (previous_stage_orders - orders_reaching)

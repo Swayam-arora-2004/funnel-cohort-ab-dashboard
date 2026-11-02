@@ -1,25 +1,14 @@
--- Business question: how is revenue accumulating over time, and is month-on-month growth
---                    speeding up or slowing down?
---
--- Three window functions over the same monthly series, which is the point of the view:
---   SUM(...) OVER (ORDER BY ...)   -> running total (each row sees all rows up to itself)
---   LAG(...)  OVER (ORDER BY ...)  -> the previous month, for month-over-month change
---   AVG(...)  OVER (... ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) -> 3-month moving average
---
--- The frame clause matters. A plain `SUM(x) OVER (ORDER BY m)` defaults to
--- RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW, which is what a running total wants.
--- The moving average has to say ROWS BETWEEN 2 PRECEDING AND CURRENT ROW explicitly,
--- otherwise it would average everything so far instead of the last three months.
+-- Is revenue growth accelerating or slowing?
+-- SUM OVER for the running total, LAG for month-over-month, AVG OVER with an explicit
+-- ROWS frame for the 3-month moving average -- the default frame would average everything
+-- so far instead of the last three months.
 
 \set ON_ERROR_STOP on
 
 CREATE OR REPLACE VIEW analytics.v_revenue_running_total AS
 WITH trading_months AS (
-    -- Growth rates are computed over TRADING months only. Leaving the partial edge months in
-    -- would make LAG compare a full month against a 1-order month and report a five-figure
-    -- growth percentage (measured: +1,101,719% into 2017-01). The cumulative totals below are
-    -- therefore also over trading months; the sparse months hold 4 orders in total, so the
-    -- difference to the all-time total is immaterial and is stated in docs/QUERIES.md.
+    -- trading months only: the three partial edge months hold 4 orders between them and
+    -- would make LAG report a five-figure growth percentage
     SELECT * FROM analytics.v_revenue_by_month WHERE NOT is_sparse_month
 )
 SELECT

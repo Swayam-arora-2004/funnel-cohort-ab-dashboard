@@ -1,26 +1,16 @@
 """Two-proportion A/B test: z-test, confidence interval, p-value and power.
 
-This module is **pure**: no database, no file I/O, no configuration. It takes four integers
-(conversions and users per arm) and returns a result object. That is a deliberate design
-choice, not an accident -- it is what makes the statistics unit-testable against hand-worked
-textbook values, and it means swapping the underlying dataset cannot break the maths
-(DECISIONS D-004, D-008).
+Pure: four integers in, a result object out. No database, no I/O. That is what lets the
+statistics be tested against hand-worked values, and why swapping the dataset did not touch
+this file.
 
-The arithmetic is written out rather than delegated to a library, because the whole point of
-this module is to be explainable line by line. `tests/test_ab_test.py` then cross-checks every
-result against `statsmodels`, so "written by hand" does not mean "unverified".
+The arithmetic is written out rather than delegated to statsmodels, and tests/test_ab_test.py
+cross-checks every quantity against statsmodels to 1e-10.
 
-The one subtlety worth knowing before reading the code: **the test and the confidence interval
-use different standard errors, on purpose.**
-
-  * The z-test asks "if the two arms were truly identical, how surprising is this gap?" Under
-    that null hypothesis there is a single shared conversion rate, so the best estimate of it
-    is the POOLED rate across both arms.
-  * The confidence interval asks "how big is the difference?" That question does not assume the
-    arms are identical, so each arm contributes its OWN variance -- an UNPOOLED standard error.
-
-Using the pooled SE for the interval (a common mistake) produces an interval that is subtly
-inconsistent with the estimate it is centred on.
+One subtlety: the test and the interval use different standard errors. The z-test uses the
+POOLED rate, because the null hypothesis says the arms share one true rate. The interval uses
+the UNPOOLED one, because estimating the size of a difference assumes nothing about the arms
+being equal. Using the pooled SE for the interval is a common mistake.
 """
 
 from __future__ import annotations
@@ -81,7 +71,7 @@ def two_proportion_ztest(
     Returns:
         An ABResult. Nothing is rounded for display; the dashboard formats it.
     """
-    # ---------------------------------------------------------------- input validation (SEC-3)
+    # input validation
     if n_a <= 0 or n_b <= 0:
         raise ValueError("each arm needs at least one user")
     if not (0 <= conv_a <= n_a) or not (0 <= conv_b <= n_b):
@@ -93,9 +83,7 @@ def two_proportion_ztest(
     rate_b = conv_b / n_b
     diff = rate_b - rate_a
 
-    # ---------------------------------------------------------------- the z-test (POOLED SE)
-    # Under the null hypothesis the arms share one true rate, so estimate it from both arms
-    # combined. This is the "what if there were no difference?" world the p-value describes.
+    # z-test: pooled SE, because the null hypothesis says the arms share one rate
     pooled_rate = (conv_a + conv_b) / (n_a + n_b)
     se_pooled = math.sqrt(pooled_rate * (1 - pooled_rate) * (1 / n_a + 1 / n_b))
 
@@ -105,34 +93,23 @@ def two_proportion_ztest(
         p_value = 1.0
     else:
         z_stat = float(diff / se_pooled)
-        # Two-sided: we did not pre-commit to a direction, so a surprise in EITHER direction
-        # counts. sf() is the survival function, 1 - cdf, computed in a numerically stable way.
-        #
-        # float() is not cosmetic. scipy returns a numpy scalar, so `p_value < alpha` would
-        # produce a numpy bool_ rather than a Python bool. That still behaves correctly in an
-        # `if`, but it breaks `is True` comparisons and would leak a numpy type into the
-        # frozen dataclass whose annotation says `bool`. Converting at the boundary keeps this
-        # module's public type contract honest.
+        # Two-sided: no direction was pre-committed. sf() is 1 - cdf, numerically stable.
+        # float() because scipy returns a numpy scalar, which would leak a numpy bool_ into
+        # a dataclass annotated bool.
         p_value = float(2 * norm.sf(abs(z_stat)))
 
-    # ---------------------------------------------------------------- the interval (UNPOOLED)
-    # This estimates the SIZE of the difference, which does not assume the arms are equal,
-    # so each arm contributes its own variance.
+    # interval: unpooled SE, because estimating a size assumes nothing about the arms
     se_unpooled = math.sqrt(rate_a * (1 - rate_a) / n_a + rate_b * (1 - rate_b) / n_b)
     z_critical = norm.ppf(1 - alpha / 2)  # 1.959964... for alpha = 0.05
     margin = float(z_critical * se_unpooled)
     ci_low, ci_high = diff - margin, diff + margin
 
-    # ---------------------------------------------------------------- power
-    # MDE: the smallest TRUE difference these sample sizes could detect `power_target` of the
-    # time. A result can be "not significant" simply because the test was too small to see the
-    # effect, so reporting this alongside the p-value is what stops a null result being
-    # misread as "the variant makes no difference" (FR-14).
+    # MDE: the smallest true difference these sample sizes could detect at power_target.
+    # Reporting it is what stops a null result being misread as "no effect".
     z_power = norm.ppf(power_target)
     mde = float((z_critical + z_power) * se_unpooled)
 
-    # Observed power: how likely was this test to reach significance, given the difference it
-    # actually saw? Low observed power + high p-value = "we learned little", not "no effect".
+    # low observed power with a high p-value means "we learned little", not "no effect"
     observed_power = float(norm.cdf(abs(diff) / se_unpooled - z_critical)) if se_unpooled else 0.0
 
     significant = bool(p_value < alpha)
@@ -160,21 +137,11 @@ def two_proportion_ztest(
 
 
 def format_p_value(p: float) -> str:
-    """Format a p-value honestly at every magnitude.
+    """Format a p-value at any magnitude, carrying its own operator ("= 0.0016", "< 1e-300").
 
-    Three cases, and the third is the one that matters:
-      * >= 1e-4  -> fixed point, which is what a reader expects.
-      * >= 5e-324 -> scientific. A p of 7.3e-179 printed as "0.000000" looks like a formatting
-        failure; it is not, it is what a 14-million-user experiment does to a real effect.
-      * underflowed to exactly 0.0 -> print "< 1e-300", NOT "0". A p-value is never exactly
-        zero. It is the probability of data at least this extreme under the null, and that is
-        always positive -- here it is simply smaller than float64 can hold (z = 65.2, so the
-        true value is around 1e-926). Printing "p = 0" would state something that is
-        mathematically false; printing a bound states what we actually know.
-
-    The returned string CARRIES ITS OWN OPERATOR ("= 0.0016" or "< 1e-300") so callers write
-    `f"(p {_format_p(x)})"`. Returning a bare value made the underflow case read
-    "p = < 1e-300".
+    Below float64's floor (~5e-324) a p-value underflows to exactly 0.0. Printing "p = 0"
+    would be false -- a p-value is a probability and is always positive -- so print a bound.
+    Here z = 65.2, so the true value is around 1e-926.
     """
 
     if p >= 1e-4:
@@ -193,11 +160,10 @@ def _verdict(
     mde: float,
     significant: bool,
 ) -> str:
-    """A plain-language recommendation a non-statistician can act on (FR-13).
+    """A plain-language recommendation.
 
-    Deliberately avoids the phrase "no difference" for a null result. Failing to detect an
-    effect is not the same as establishing there is none, and that distinction is the single
-    most common way an A/B readout misleads the person reading it.
+    Avoids the phrase "no difference" for a null result -- failing to detect an effect is not
+    the same as establishing there is none.
     """
     direction = "better" if diff > 0 else "worse"
     size_pp = abs(diff) * 100
@@ -240,7 +206,7 @@ def _verdict(
 
 
 def _caveats(n_a: int, n_b: int, mde: float, abs_diff: float, significant: bool) -> tuple[str, ...]:
-    """Caveats that apply to THIS project's use of a public experiment (FR-14)."""
+    """Caveats that apply to analysing someone else's published experiment."""
     items = [
         f"Sample size: {n_a:,} users in the control arm and {n_b:,} in the variant.",
         f"With these sample sizes the test can reliably detect a difference of "

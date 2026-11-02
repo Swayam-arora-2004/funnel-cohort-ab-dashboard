@@ -1,20 +1,13 @@
-"""Export the analytics views to CSV, for rebuilding the dashboard in Tableau Public.
+"""Export the analytics views to CSV, for rebuilding the dashboard in a BI tool.
 
-Three things here are security decisions, not formatting choices (SEC-11):
+Three guards here are security decisions, not formatting:
 
-1. **An allowlist of view names.** The view to export is never taken from user input or from a
-   file. SQL identifiers cannot be bound as parameters -- only values can -- so a dynamic table
-   name would have to be interpolated into the statement, which is exactly the injection path
-   SEC-4 forbids. The allowlist below is the whole set, and anything not in it is refused.
-
-2. **No identifiers leave the database.** Published Tableau Public workbooks are world-visible
-   (D-002), so every export is an aggregate. The guard rejects any column whose name looks like
-   an identifier rather than trusting that the views happen not to contain one today.
-
-3. **A formula-injection guard.** A CSV cell beginning with `=`, `+`, `-` or `@` is executed as
-   a formula when the file is opened in Excel or Sheets. `=HYPERLINK(...)` in a shared export
-   is a real attack. Every text cell that starts with one of those is prefixed with an
-   apostrophe, which spreadsheets treat as "this is text".
+* An allowlist of view names. SQL can bind a value but not an identifier, so a dynamic view
+  name has to be interpolated -- the allowlist is what makes that safe.
+* No identifier columns leave the database. Published workbooks are world-visible, so the
+  guard refuses any column whose name looks like an id rather than trusting the views.
+* A formula-injection guard. A cell starting with = + - or @ is executed as a formula by
+  Excel and Sheets, so those get an apostrophe prefix.
 """
 
 from __future__ import annotations
@@ -34,7 +27,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("export_views")
 
-# The complete set of views that may be exported. Identifiers never come from input (SEC-4).
+# the complete set that may be exported; identifiers never come from input
 EXPORTABLE_VIEWS: tuple[str, ...] = (
     "v_funnel_stages",
     "v_funnel_dropoff",
@@ -47,8 +40,7 @@ EXPORTABLE_VIEWS: tuple[str, ...] = (
     "v_repeat_purchase_summary",
 )
 
-# Columns that must never reach a published file. Matched by name, so a future view that adds
-# one is caught rather than silently exported (SEC-11, SEC-6).
+# matched by name, so a future view that adds an id fails the export rather than publishing it
 _IDENTIFIER_PATTERN = re.compile(
     r"(customer_unique_id|customer_id|order_id|product_id|seller_id|review_id|userid|zip)",
     re.IGNORECASE,
@@ -63,13 +55,11 @@ class ExportError(RuntimeError):
 
 
 def sanitise_for_spreadsheets(frame: pd.DataFrame) -> pd.DataFrame:
-    """Prefix any text cell that a spreadsheet would execute as a formula (SEC-11)."""
+    """Prefix any text cell a spreadsheet would execute as a formula."""
     out = frame.copy()
     for column in out.columns:
-        # Detect text columns with pandas' own predicate rather than comparing dtypes by hand.
-        # The hand-written version checked for `object` and `"string"` and silently did
-        # NOTHING on pandas 3.x, where text columns default to the `str` dtype -- so the guard
-        # was a no-op and the first export ran unsanitised. A test now covers this.
+        # pandas' own predicate, not a hand-written dtype comparison. Checking for `object`
+        # and `"string"` silently did nothing on pandas 3.x, where text columns are `str`.
         if pd.api.types.is_string_dtype(out[column]) or out[column].dtype == object:
             out[column] = out[column].map(
                 lambda v: f"'{v}" if isinstance(v, str) and v.startswith(_FORMULA_PREFIXES) else v
@@ -82,8 +72,7 @@ def export_one(view: str, exports_dir) -> int:
     if view not in EXPORTABLE_VIEWS:
         raise ExportError(f"{view!r} is not in EXPORTABLE_VIEWS; refusing to export it")
 
-    # `view` is a constant from the tuple above, never input, so this f-string cannot be an
-    # injection vector. Both linters flag it anyway because they cannot see where it came from.
+    # `view` is a constant from the tuple above, never input
     frame = fetch_df(engine_ro(), text(f"SELECT * FROM analytics.{view}"))  # noqa: S608  # nosec B608
 
     leaked = [c for c in frame.columns if _IDENTIFIER_PATTERN.search(c)]

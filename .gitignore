@@ -9,13 +9,9 @@ notes/
 *.key
 kaggle.json
 
-# Downloaded data — untrusted input, large, re-downloadable (see docs/DATA.md)
-data/raw/*
-!data/raw/.gitkeep
-
-# Generated artefacts
-exports/*
-!exports/.gitkeep
+# Downloaded source data (see docs/DATA.md) and generated exports
+data/raw/
+exports/
 
 # BI workbooks (may embed credentials or extracts)
 *.pbix

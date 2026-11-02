@@ -1,4 +1,4 @@
-"""Cohort retention heatmap (FR-18, FR-21)."""
+"""Cohort retention heatmap."""
 
 from __future__ import annotations
 

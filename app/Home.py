@@ -1,18 +1,11 @@
-"""Streamlit entry point: KPI tiles, the funnel and revenue over time (FR-16, FR-17, FR-21).
+"""Entry point: KPI tiles, the funnel and revenue over time.
 
-Security notes for this whole app:
-  * It connects as `dashboard_ro`, which has SELECT on `analytics` and NO privileges on `raw`
-    (SEC-5). A write attempt from this role fails -- asserted by
-    tests/test_load.py::test_readonly_role_cannot_write.
-  * Every query is parameterised in app/components/queries.py (SEC-4).
-  * Database errors are caught and shown as a generic message. Raw exception text, SQL and
-    connection strings are never rendered in the browser (SEC-10).
+The whole app connects as dashboard_ro -- SELECT on analytics, nothing on raw. Every query is
+parameterised in queries.py, and database errors surface as a generic message rather than a
+traceback in the browser.
 
-Layout note -- why the sections are TABS rather than one long page (D-020):
-Measured on this page, content grew from 800px to 2,243px over the ~800ms the charts took to
-render, and scrolling during that window jumped BACKWARDS by 198px as the layout settled under
-the pointer. Streamlit's sidebar is also its own scroll region, so a wheel over those 300px
-moves nothing. Both problems disappear when a page fits in about one screen.
+Sections are tabs rather than one long page: this page grew from 800px to 2,243px over the
+~800ms the charts took to lay out, and scrolling during that jumped backwards by 198px.
 """
 
 from __future__ import annotations
@@ -43,7 +36,7 @@ st.set_page_config(
 
 
 def show_database_error(exc: Exception) -> None:
-    """Generic message to the user, detail only to the server log (SEC-10)."""
+    """Generic message to the user; the detail goes to the server log."""
     log.exception("dashboard query failed")
     st.error(
         "Could not load data from the database. Check that it is running "
@@ -54,19 +47,11 @@ def show_database_error(exc: Exception) -> None:
 
 
 def render_kpis(start, end) -> None:
-    """The four headline figures (FR-16).
+    """The four headline figures, as two rows of two.
 
-    TWO ROWS OF TWO, not one row of four. Four tiles across needs about 190px each for these
-    values. With the sidebar open, a 1100px window leaves roughly 165px per tile, and
-    Streamlit's metric font is large enough that "R$ 137.43" truncated to "R$ 13..." -- the
-    headline figures became unreadable, and shortening the values could not fix it.
-
-    CSS injected against Streamlit's internal class names to shrink the font would break
-    silently on a version upgrade, and Streamlit has no width breakpoint to switch layouts on.
-    Two rows of two give every tile roughly 360px at 1100px and more above that.
-
-    Each caption must fit ONE line: a caption that wraps makes its tile taller than its
-    neighbour and the pair's bottom edges stop lining up.
+    Four across needs ~190px per tile; a 1100px window with the sidebar open gives ~165px, and
+    "R$ 137.43" truncated to "R$ 13...". Each caption has to fit one line, or its tile grows
+    taller than its neighbour and the row stops lining up.
     """
     kpis = queries.kpi_totals(start, end)
     completion = queries.delivery_completion_rate(start, end)
@@ -83,8 +68,7 @@ def render_kpis(start, end) -> None:
             caption="non-canceled",
         )
     with tiles[1]:
-        # Abbreviated headline, exact figure in the caption. At a 1280px window the full
-        # number overflowed the tile and rendered as "R$ 13,49..." -- see charts.compact_money.
+        # abbreviated headline, exact figure in the caption
         charts.kpi_tile(
             "Revenue",
             charts.compact_money(float(kpis.revenue)),
@@ -111,16 +95,13 @@ def render_kpis(start, end) -> None:
 
 
 def render_funnel(start, end) -> None:
-    """The funnel chart, its table view and the biggest-loss callout (FR-17)."""
+    """The funnel chart, a table view of the same numbers, and the biggest-loss callout."""
     funnel = queries.funnel_stages(start, end)
     if funnel.empty:
         st.info("No orders in the selected range.")
         return
 
-    # The chart and the table each get the FULL width, stacked, rather than sharing a row.
-    # Side by side, the table was squeezed into ~380px at a 1280px window and its last column
-    # clipped to "Step co...". Streamlit has no breakpoint to fix that per-width, so the
-    # layout that works at every width wins over the one that looks tidier at 1500px.
+    # stacked, not side by side: in a side column the table clipped to "Step co..." at 1280px
     st.plotly_chart(charts.funnel_chart(funnel), width="stretch")
 
     worst = funnel.iloc[1:].nlargest(1, "dropped_orders").iloc[0]
@@ -131,10 +112,8 @@ def render_funnel(start, end) -> None:
         f"({100 - worst.step_conversion_pct:.2f}% of those that got that far)."
     )
 
-    # A table view for every chart, so no reading depends on seeing colour. Values are
-    # formatted as strings rather than left to a number formatter: thousands separators matter
-    # for reading these at a glance, and the first row genuinely has no "previous stage",
-    # which should read as a dash rather than the word "None".
+    # a table for every chart, so nothing depends on seeing colour. Formatted as strings:
+    # the first row has no previous stage, which should read as a dash, not "None".
     with st.expander("Table view — the same five stages as numbers"):
         st.dataframe(
             pd.DataFrame(
@@ -163,7 +142,7 @@ def render_funnel(start, end) -> None:
 
 
 def render_revenue(start, end) -> None:
-    """Revenue and order count over time, as two charts -- never one with two y-axes."""
+    """Revenue and order count as two charts -- never one with two y-axes."""
     revenue = queries.revenue_by_month(start, end)
     if revenue.empty:
         st.info("No revenue in the selected range.")
@@ -174,7 +153,6 @@ def render_revenue(start, end) -> None:
         st.markdown("**Monthly revenue**")
         st.plotly_chart(charts.revenue_line(revenue, "revenue", "Monthly revenue"), width="stretch")
     with right:
-        # Two measures of different scale => TWO charts. Never one chart with two y-axes.
         st.markdown("**Monthly order count**")
         st.plotly_chart(
             charts.revenue_line(revenue, "orders", "Orders", as_currency=False),
@@ -226,7 +204,7 @@ try:
 
     render_kpis(start, end)
 
-    # Sections are TABS, not one long scroll -- see the module docstring and D-020.
+    # tabs, not one long scroll -- see the module docstring
     funnel_tab, revenue_tab = st.tabs(["Fulfilment funnel", "Revenue over time"])
     with funnel_tab:
         render_funnel(start, end)

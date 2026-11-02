@@ -1,42 +1,30 @@
-"""Colour tokens for every chart. The only module in the project containing hex codes.
+"""Colour tokens. The only module containing hex codes, so a colour is defined once and
+referenced by role everywhere else.
 
-Keeping them here means a colour is defined once and referenced by ROLE everywhere else, so
-"what colour is series 2?" has exactly one answer and a theme change is a one-file edit.
+The values were checked with a palette validator against the surface this renders on
+(#fcfcfb): the categorical pair clears a colour-blind delta-E of 24.7 against a target of 8,
+and the funnel ramp is monotone in lightness with its light end at 2.06:1.
 
-**These values were validated by a script, not chosen by eye.** The categorical pair and the
-funnel ramp were both run through the design system's palette validator against the light
-surface this dashboard actually renders on (#fcfcfb, pinned in .streamlit/config.toml):
-
-    categorical, 2 slots  -- lightness band PASS, chroma floor PASS,
-                             CVD separation PASS (worst adjacent delta-E 24.7 protan),
-                             normal-vision floor PASS (delta-E 33.6), contrast PASS
-    funnel ordinal ramp   -- monotone lightness PASS, adjacent delta-L PASS,
-                             light-end contrast PASS (2.06:1), single hue PASS (3 degree spread)
-
-Rules that must survive any edit:
-  * Categorical hues are assigned in FIXED order and never cycled. A series keeps its colour
-    when a filter removes its neighbours -- colour follows the entity, never its rank.
-  * Sequential encoding is ONE hue, light to dark. Never a rainbow.
-  * Status colours are reserved and never reused as "series 3".
-  * Text wears ink tokens, never a series colour.
+Rules that should survive an edit: categorical hues are assigned in fixed order and never
+cycled, so a series keeps its colour when a filter removes its neighbours; sequential
+encoding is one hue light to dark, never a rainbow; status colours are reserved; text wears
+ink tokens, never a series colour.
 """
 
 from __future__ import annotations
 
 # ---------------------------------------------------------------- surfaces and ink
-SURFACE = "#fcfcfb"  # chart surface; the colour every contrast check was run against
+SURFACE = "#fcfcfb"  # the colour every contrast check was run against
 PAGE = "#f9f9f7"
 INK_PRIMARY = "#0b0b0b"
 INK_SECONDARY = "#52514e"
-INK_MUTED = "#898781"  # axis labels, ticks -- deliberately recessive
+INK_MUTED = "#898781"  # axis labels and ticks
 GRID = "#e1e0d9"  # hairline gridlines
 BASELINE = "#c3c2b7"
 LABEL_ON_FILL = "#ffffff"
 
 # ---------------------------------------------------------------- categorical
-# Assigned in this order, never cycled. Only the first two are used (the A/B control and
-# treatment arms); the rest are listed so a future series takes the next slot rather than
-# inventing a hue.
+# assigned in this order, never cycled; the rest are listed so a new series takes the next slot
 SERIES: tuple[str, ...] = (
     "#2a78d6",  # 1 blue
     "#eb6834",  # 2 orange
@@ -49,14 +37,11 @@ SERIES: tuple[str, ...] = (
 )
 
 # ---------------------------------------------------------------- ordinal (funnel)
-# Funnel stages are ORDERED, not independent categories, so they take one hue stepping
-# light -> dark rather than five different colours. Five steps of the blue ramp; the lightest
-# is step 250, which is the lightest step that still clears 2:1 against the light surface.
+# ordered stages, so one hue light -> dark. The lightest step still clears 2:1 on the surface.
 FUNNEL_RAMP: tuple[str, ...] = ("#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281")
 
 # ---------------------------------------------------------------- sequential (heatmap)
-# Continuous magnitude, so the full ramp is allowed: the lightest step means "near zero" and
-# may recede toward the surface.
+# continuous magnitude, so the full ramp is allowed
 SEQUENTIAL: tuple[str, ...] = (
     "#cde2fb",
     "#b7d3f6",
@@ -74,8 +59,7 @@ SEQUENTIAL: tuple[str, ...] = (
 )
 
 # ---------------------------------------------------------------- status (reserved)
-# Never reused for a series. Always paired with a word or an icon, so meaning is never
-# carried by colour alone.
+# never reused for a series, and always paired with a word
 STATUS: dict[str, str] = {
     "good": "#0ca30c",
     "warning": "#fab219",
@@ -86,11 +70,7 @@ SUCCESS_TEXT = "#006300"  # for "+12%" style deltas, which need text contrast no
 
 
 def plotly_layout(height: int = 360) -> dict:
-    """Shared layout: recessive chrome, transparent surface, ink-token text.
-
-    Every chart uses this so the dashboard reads as one system rather than five charts that
-    happen to sit on the same page.
-    """
+    """Shared layout, so the charts read as one system rather than five separate ones."""
     return {
         "height": height,
         "margin": {"l": 8, "r": 8, "t": 8, "b": 8},

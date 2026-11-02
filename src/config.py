@@ -1,9 +1,7 @@
-"""The only module that reads environment variables (docs/TECH_SPECS.md section 3).
+"""The only module that reads environment variables.
 
-WHY one place: if every module read os.environ, a credential could be picked up anywhere and
-it would be impossible to audit. Funnelling it through one frozen dataclass means
-`grep -rn "os.environ" src app` must return exactly this file, and that is a check we can
-actually run in review (SEC-2).
+Keeping it in one place means `grep -rn os.environ src app` returns exactly this file,
+which makes the credential path auditable in review.
 """
 
 from __future__ import annotations
@@ -14,8 +12,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load .env once, at import time. override=False so a real environment variable (for example
-# one set by CI) always wins over the local file.
+# override=False so a real environment variable (CI) wins over the local file
 load_dotenv(override=False)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -23,7 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 @dataclass(frozen=True)
 class Settings:
-    """Everything the application needs from the environment. Frozen so nothing can mutate it."""
+    """Everything the app needs from the environment."""
 
     pg_host: str
     pg_port: int
@@ -36,7 +33,7 @@ class Settings:
     exports_dir: Path
 
     def url(self, user: str, password: str) -> str:
-        """Build a SQLAlchemy URL. Never logged and never shown to a user (SEC-10)."""
+        """Build a SQLAlchemy URL. Never logged -- it contains the password."""
         return f"postgresql+psycopg2://{user}:{password}@{self.pg_host}:{self.pg_port}/{self.pg_db}"
 
     @property
@@ -49,7 +46,7 @@ class Settings:
 
 
 def _require(name: str) -> str:
-    """Fetch a required variable, failing with a message that names it but never prints a value."""
+    """Fetch a required variable. Names it on failure, never prints the value."""
     value = os.environ.get(name, "").strip()
     if not value:
         raise RuntimeError(
@@ -60,7 +57,7 @@ def _require(name: str) -> str:
 
 
 def _resolve(raw: str) -> Path:
-    """Resolve a configured path relative to the repo root, so commands work from any directory."""
+    """Resolve relative to the repo root, so commands work from any directory."""
     path = Path(raw).expanduser()
     return path if path.is_absolute() else (REPO_ROOT / path).resolve()
 

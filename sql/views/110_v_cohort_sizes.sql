@@ -1,13 +1,6 @@
--- Business question: how many NEW customers did each month bring in?
---
--- "New" means this is the month of the customer's FIRST EVER order. The month of that first
--- order is the customer's cohort, and it never changes afterwards -- that is what makes
--- retention comparable across months.
---
--- The grouping key is customer_unique_id, NOT customer_id (DECISIONS D-007). Olist issues a
--- fresh customer_id for every order, so grouping by customer_id would count the same person
--- several times and make retention look like zero. Measured: 99,441 customer_id values map to
--- 96,096 real people.
+-- How many new customers did each month bring in?
+-- A customer's cohort is the month of their first ever order, and it never changes.
+-- Keyed on customer_unique_id -- customer_id is issued per order.
 
 \set ON_ERROR_STOP on
 

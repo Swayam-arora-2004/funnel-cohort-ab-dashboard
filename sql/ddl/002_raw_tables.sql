@@ -1,27 +1,15 @@
--- 002_raw_tables.sql
--- One table per source CSV we actually load. Typed, with primary keys.
--- Re-runnable (CREATE TABLE IF NOT EXISTS).
---
--- WHY declare types instead of letting pandas guess: a silent type coercion is how wrong
--- numbers get into a dashboard. Declaring the type here means a bad CSV fails the load
--- loudly (FR-3) instead of quietly storing a price as text.
---
--- Deliberately NOT loaded (SEC-6, FR-4):
---   * olist_geolocation_dataset.csv  -- precise lat/long, personal-data risk, not needed
---   * olist_sellers_dataset.csv      -- not needed by any numbered requirement
---   * review_comment_title / review_comment_message -- free text, may contain names
---
--- Money is numeric(12,2), never float. A float would make revenue totals drift by cents,
--- and "why doesn't your revenue tie out?" is a bad interview moment.
+-- One table per source file, typed, with primary keys. Re-runnable.
+-- Declared types mean a malformed CSV fails the load instead of silently storing a price as text.
+-- Not loaded: olist_geolocation (lat/long), olist_sellers, and the free-text review columns.
+-- Money is numeric(12,2), never float.
 
 \set ON_ERROR_STOP on
 
 -- ============================================================== Olist: customers
 CREATE TABLE IF NOT EXISTS raw.customers (
     customer_id               text PRIMARY KEY,
-    -- customer_unique_id is the PERSON. customer_id is issued fresh for every order, so
-    -- counting customers by customer_id overstates them badly. This is the classic Olist
-    -- trap (DECISIONS D-007) and the cohort views key on customer_unique_id.
+    -- the person-level key. customer_id is issued fresh per order, so counting it
+    -- overstates customers: 99,441 ids for 96,096 people.
     customer_unique_id        text        NOT NULL,
     customer_zip_code_prefix  text,
     customer_city             text,
@@ -34,9 +22,7 @@ CREATE TABLE IF NOT EXISTS raw.orders (
     order_id                      text PRIMARY KEY,
     customer_id                   text NOT NULL,
     order_status                  text NOT NULL,
-    -- The five lifecycle timestamps. These ARE the funnel (DECISIONS D-006): Olist has no
-    -- clickstream, so an acquisition funnel is not derivable. These columns are real and
-    -- observable, and the NULLs are the drop-off.
+    -- the five lifecycle timestamps are the funnel; a NULL means the order never got there
     order_purchase_timestamp      timestamp NOT NULL,
     order_approved_at             timestamp,
     order_delivered_carrier_date  timestamp,
@@ -56,7 +42,7 @@ CREATE TABLE IF NOT EXISTS raw.order_items (
     freight_value   numeric(12,2),
     PRIMARY KEY (order_id, order_item_id)
 );
-COMMENT ON TABLE raw.order_items IS 'One row per item within an order. Revenue = SUM(price); an order with 3 items has 3 rows, so revenue queries must aggregate before joining to orders.';
+COMMENT ON TABLE raw.order_items IS 'One row per ITEM, not per order. A 3-item order is 3 rows, so aggregate to order level before counting orders.';
 
 -- ============================================================== Olist: order_payments
 CREATE TABLE IF NOT EXISTS raw.order_payments (
@@ -70,9 +56,7 @@ CREATE TABLE IF NOT EXISTS raw.order_payments (
 COMMENT ON TABLE raw.order_payments IS 'Payment attempts per order. An order can be paid with several instruments, hence payment_sequential.';
 
 -- ============================================================== Olist: order_reviews
--- review_id is NOT reliably unique in the published CSV (a known data-quality issue), so we
--- use a surrogate key and keep the natural columns as-is. Loading with review_id as the PK
--- would fail; pretending it is unique would silently drop rows.
+-- review_id is not unique in the published CSV, so the PK is a surrogate.
 CREATE TABLE IF NOT EXISTS raw.order_reviews (
     review_pk            bigserial PRIMARY KEY,
     review_id            text NOT NULL,
@@ -80,7 +64,7 @@ CREATE TABLE IF NOT EXISTS raw.order_reviews (
     review_score         smallint,
     review_creation_date timestamp,
     review_answer_timestamp timestamp
-    -- review_comment_title and review_comment_message are intentionally absent (SEC-6).
+    -- the two free-text comment columns are deliberately not loaded
 );
 COMMENT ON TABLE raw.order_reviews IS 'Olist reviews, free-text columns dropped for privacy (SEC-6). Existence of a row = the order reached the final funnel stage.';
 
@@ -98,10 +82,7 @@ COMMENT ON TABLE raw.products IS 'Products, kept only for product_category_name 
 -- The A/B experiment table lives in 004_ab_criteo.sql, because it comes from a different
 -- source with a different licence and is the one piece a reader may want to swap.
 
--- Foreign keys are deliberately NOT declared here (DECISIONS D-011). The raw layer's job is
--- to accept the source data exactly as published; declaring an FK would abort the load on the
--- orphan rows the CSVs genuinely contain, which hides a data-quality fact instead of reporting
--- it. Instead, tests/test_load.py COUNTS orphans and records the number, and the join columns
--- are indexed in 003 so the analytics views are still fast.
+-- No foreign keys: raw accepts the source as published. tests/test_load.py counts orphans
+-- instead, so a broken reference is reported rather than aborting the load.
 
 \echo 'raw tables ready'
