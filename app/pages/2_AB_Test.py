@@ -43,13 +43,22 @@ try:
         st.markdown(f"### {label}")
 
         summary = queries.ab_summary(metric)
-        chart_col, stat_col = st.columns([3, 2])
 
-        with chart_col:
-            st.plotly_chart(
-                charts.ab_comparison_chart(summary, label),
-                width="stretch",
-            )
+        # Significance is stated in WORDS, not by colour alone, and before the charts.
+        if result.significant:
+            st.markdown(f"**Statistically significant** at α = 0.05 (p = {result.p_value:.6f})")
+        else:
+            st.markdown(f"**Not statistically significant** at α = 0.05 (p = {result.p_value:.6f})")
+
+        # The two charts share a row -- both read fine at half width. The statistics TABLE
+        # gets the full width on its own row: squeezed into a side column it clipped at a
+        # 1280px window, so "44.819% (20,034 / 44,700)" rendered as "44.819% (20,034" and the
+        # Bonferroni verdict as "α = 0.025 — does". A table that truncates its own numbers is
+        # worse than no table. Same fix as the funnel table on the Home page.
+        left, right = st.columns(2)
+        with left:
+            st.plotly_chart(charts.ab_comparison_chart(summary, label), width="stretch")
+        with right:
             st.plotly_chart(
                 charts.confidence_interval_chart(
                     result.ci_low_pp, result.ci_high_pp, result.diff_pp
@@ -57,49 +66,52 @@ try:
                 width="stretch",
             )
             st.caption(
-                "The lower chart is the whole conclusion in one picture: **if the bar crosses "
-                "the dashed line, the data cannot rule out 'no effect'.**"
+                "The interval chart is the whole conclusion in one picture: **if the bar "
+                "crosses the dashed line, the data cannot rule out 'no effect'.**"
             )
 
-        with stat_col:
-            # Significance is stated in WORDS, not by colour alone.
-            if result.significant:
-                st.markdown(f"**Statistically significant** at α = 0.05 (p = {result.p_value:.6f})")
-            else:
-                st.markdown(
-                    f"**Not statistically significant** at α = 0.05 (p = {result.p_value:.6f})"
-                )
-
-            st.dataframe(
-                {
-                    "Measure": [
-                        "Control (gate_30)",
-                        "Variant (gate_40)",
-                        "Absolute difference",
-                        "Relative change",
-                        "z statistic",
-                        "p-value (two-sided)",
-                        "95% CI on difference",
-                        "Bonferroni threshold (2 metrics)",
-                        "Min detectable effect (80% power)",
-                        "Observed power",
-                    ],
-                    "Value": [
-                        f"{result.rate_a * 100:.3f}%  ({result.conv_a:,} / {result.n_a:,})",
-                        f"{result.rate_b * 100:.3f}%  ({result.conv_b:,} / {result.n_b:,})",
-                        f"{result.diff_pp:+.3f} pp",
-                        f"{result.relative_change_pct:+.2f}%",
-                        f"{result.z_stat:+.4f}",
-                        f"{result.p_value:.6f}",
-                        f"[{result.ci_low_pp:+.3f}, {result.ci_high_pp:+.3f}] pp",
-                        f"α = 0.025 — {'passes' if result.p_value < 0.025 else 'does not pass'}",
-                        f"{result.mde_pp:.3f} pp",
-                        f"{result.observed_power:.1%}",
-                    ],
-                },
-                hide_index=True,
-                width="stretch",
-            )
+        st.dataframe(
+            {
+                "Measure": [
+                    "Control (gate_30)",
+                    "Variant (gate_40)",
+                    "Absolute difference",
+                    "Relative change",
+                    "z statistic",
+                    "p-value (two-sided)",
+                    "95% CI on difference",
+                    "Bonferroni threshold (2 metrics)",
+                    "Min detectable effect (80% power)",
+                    "Observed power",
+                ],
+                "Value": [
+                    f"{result.rate_a * 100:.3f}%",
+                    f"{result.rate_b * 100:.3f}%",
+                    f"{result.diff_pp:+.3f} pp",
+                    f"{result.relative_change_pct:+.2f}%",
+                    f"{result.z_stat:+.4f}",
+                    f"{result.p_value:.6f}",
+                    f"[{result.ci_low_pp:+.3f}, {result.ci_high_pp:+.3f}] pp",
+                    f"α = 0.025 — {'passes' if result.p_value < 0.025 else 'does not pass'}",
+                    f"{result.mde_pp:.3f} pp",
+                    f"{result.observed_power:.1%}",
+                ],
+                "Detail": [
+                    f"{result.conv_a:,} of {result.n_a:,} players retained",
+                    f"{result.conv_b:,} of {result.n_b:,} players retained",
+                    "variant minus control",
+                    "as a share of the control rate",
+                    "pooled standard error",
+                    "two-proportion z-test",
+                    "unpooled standard error",
+                    "corrected for testing two metrics",
+                    "smallest true effect this sample could detect",
+                    "chance this test had of reaching significance",
+                ],
+            },
+            hide_index=True,
+            width="stretch",
+        )
 
         st.markdown("**Recommendation**")
         if result.significant and result.diff_pp < 0:

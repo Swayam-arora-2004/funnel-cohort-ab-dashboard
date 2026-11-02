@@ -87,19 +87,39 @@ try:
     completion = queries.delivery_completion_rate(start, end)
 
     st.subheader("Key figures")
-    tiles = st.columns(4)
+    # TWO ROWS OF TWO, not one row of four.
+    #
+    # Four tiles across needs about 190px each for these values. With the sidebar open, a
+    # 1100px window leaves roughly 165px per tile, and Streamlit's metric font is large enough
+    # that "R$ 137.43" truncated to "R$ 13..." -- the headline figures became unreadable, and
+    # shortening the values could not fix it because even "R$ 137.43" did not fit.
+    #
+    # The alternatives were worse: CSS injected against Streamlit's internal class names to
+    # shrink the font would break silently on a version upgrade, and Streamlit has no
+    # width breakpoint to switch layouts on. Two rows of two give every tile roughly 360px at
+    # 1100px and more above that, so the row never has to be checked again.
+    #
+    # Each caption must still fit ONE line: a caption that wraps makes its tile taller than
+    # its neighbour and the pair's bottom edges stop lining up.
+    row_one = st.columns(2)
+    row_two = st.columns(2)
+    tiles = [row_one[0], row_one[1], row_two[0], row_two[1]]
     with tiles[0]:
         charts.kpi_tile(
             "Orders",
             f"{int(kpis.orders):,}",
             "Non-canceled orders containing at least one item, in the selected months.",
+            caption="non-canceled",
         )
     with tiles[1]:
+        # Abbreviated headline, exact figure in the caption. At a 1280px window the full
+        # number overflowed the tile and rendered as "R$ 13,49..." -- see charts.compact_money.
         charts.kpi_tile(
             "Revenue",
-            f"R$ {float(kpis.revenue):,.0f}",
+            charts.compact_money(float(kpis.revenue)),
             "Sum of item prices. Freight is excluded -- it is pass-through shipping cost, "
             "not merchandise revenue.",
+            caption=f"R$ {float(kpis.revenue):,.0f} exact",
         )
     with tiles[2]:
         charts.kpi_tile(
@@ -107,6 +127,7 @@ try:
             f"R$ {float(kpis.avg_order_value):,.2f}",
             "Revenue divided by order count. Recomputed from the totals, NOT an average of "
             "monthly AOVs -- that would weight a quiet month the same as a busy one.",
+            caption="revenue ÷ orders",
         )
     with tiles[3]:
         charts.kpi_tile(
@@ -114,6 +135,7 @@ try:
             f"{completion:.2f}%",
             "Share of placed orders that were delivered AND reviewed. Same cumulative stage "
             "definition as the funnel chart below.",
+            caption="placed → reviewed",
         )
 
     # ---------------------------------------------------------------- funnel (FR-17)
@@ -130,27 +152,29 @@ try:
     if funnel.empty:
         st.info("No orders in the selected range.")
     else:
-        chart_col, table_col = st.columns([3, 2])
-        with chart_col:
-            st.plotly_chart(charts.funnel_chart(funnel), width="stretch")
-        with table_col:
-            # A table view alongside every chart, so no reading depends on seeing colour.
-            # Formatted as strings rather than left to a number formatter: thousands
-            # separators matter for reading these at a glance, and the first row genuinely has
-            # no "previous stage", which should read as a dash rather than the word "None".
-            display = pd.DataFrame(
-                {
-                    "Stage": funnel.stage_name,
-                    "Orders": funnel.orders_reaching.map("{:,.0f}".format),
-                    "Lost here": funnel.dropped_orders.map(
-                        lambda v: "—" if pd.isna(v) else f"{v:,.0f}"
-                    ),
-                    "Step conversion": funnel.step_conversion_pct.map(
-                        lambda v: "—" if pd.isna(v) else f"{v:.2f}%"
-                    ),
-                }
-            )
-            st.dataframe(display, hide_index=True, width="stretch")
+        # The chart and the table each get the FULL width, stacked, rather than sharing a row.
+        # Side by side, the table was squeezed into ~380px at a 1280px window and its last
+        # column clipped to "Step co...". Streamlit has no breakpoint to fix that per-width,
+        # so the layout that works at every width wins over the one that looks tidier at 1500px.
+        st.plotly_chart(charts.funnel_chart(funnel), width="stretch")
+
+        # A table view under every chart, so no reading depends on seeing colour.
+        # Values are formatted as strings rather than left to a number formatter: thousands
+        # separators matter for reading these at a glance, and the first row genuinely has no
+        # "previous stage", which should read as a dash rather than the word "None".
+        display = pd.DataFrame(
+            {
+                "Stage": funnel.stage_name,
+                "Orders": funnel.orders_reaching.map("{:,.0f}".format),
+                "Lost here": funnel.dropped_orders.map(
+                    lambda v: "—" if pd.isna(v) else f"{v:,.0f}"
+                ),
+                "Step conversion": funnel.step_conversion_pct.map(
+                    lambda v: "—" if pd.isna(v) else f"{v:.2f}%"
+                ),
+            }
+        )
+        st.dataframe(display, hide_index=True, width="stretch")
 
         worst = funnel.iloc[1:].nlargest(1, "dropped_orders").iloc[0]
         previous_stage = funnel.loc[funnel.stage_order == worst.stage_order - 1, "stage_name"]

@@ -31,6 +31,14 @@ st.caption(
     "re-derived with one query."
 )
 
+# A tile's VALUE must stay short -- about 8 characters -- or Streamlit's large metric font
+# truncates it at a narrow window ("1,637 orders" rendered as "1,637 or..." at 1100px). Units
+# move to the label or the caption, which are small enough to carry them. Captions must fit
+# ONE line too, or an uneven tile height breaks the row's bottom alignment.
+# The LABEL has the same constraint, at about 20 characters:
+# "Orders lost: approved → carrier" ellipsised to "Orders lost: approved → c...".
+# Checked at 1100px, 1280px and 1512px rather than assumed.
+#
 # st.metric's `delta` draws an up/down ARROW, which asserts "this went up/down since last
 # period". Most of the second lines on this page are descriptive ("of 96,096 total",
 # "placed -> delivered & reviewed") and nothing moved, so an arrow there is a false claim --
@@ -55,16 +63,14 @@ try:
         st.subheader("1. The funnel leaks in logistics, not in payments")
         cols = st.columns(3)
         with cols[0].container(border=True):
-            st.metric("Lost: approved → carrier", f"{int(carrier_drop.dropped_orders):,} orders")
-            st.caption(
-                f"{float(carrier_drop.step_dropoff_pct):.2f}% of the orders that got that far"
-            )
+            st.metric("Approved → carrier", f"{int(carrier_drop.dropped_orders):,}")
+            st.caption(f"orders lost · {float(carrier_drop.step_dropoff_pct):.2f}%")
         with cols[1].container(border=True):
-            st.metric("Lost: placed → approved", f"{int(payment_drop.dropped_orders):,} orders")
-            st.caption(f"{float(payment_drop.step_dropoff_pct):.2f}% — payment is not the problem")
+            st.metric("Placed → approved", f"{int(payment_drop.dropped_orders):,}")
+            st.caption(f"orders lost · {float(payment_drop.step_dropoff_pct):.2f}%")
         with cols[2].container(border=True):
             st.metric("End-to-end completion", f"{float(completion):.2f}%")
-            st.caption("placed → delivered & reviewed")
+            st.caption("placed → reviewed")
 
         st.markdown(
             f"""
@@ -95,7 +101,7 @@ payment-retry project on this evidence.
         cols = st.columns(3)
         with cols[0].container(border=True):
             st.metric("Repeat-purchase rate", f"{float(repeat.repeat_pct):.2f}%")
-            st.caption("ever placed a second order")
+            st.caption("bought a second time")
         with cols[1].container(border=True):
             st.metric(
                 "Customers who never return",
@@ -104,7 +110,7 @@ payment-retry project on this evidence.
             st.caption(f"of {int(repeat.total_customers):,} total")
         with cols[2].container(border=True):
             st.metric("Bought twice or more", f"{int(repeat.repeat_customers):,}")
-            st.caption("over the full two-year window")
+            st.caption("in two years")
 
         st.markdown(
             f"""
@@ -142,7 +148,7 @@ the calculation the A/B page's minimum-detectable-effect figure demonstrates.
     # ================================================================ FINDING 3
     with st.container(border=True):
         st.subheader("3. Moving the game's progression gate to level 40 made retention worse")
-        cols = st.columns(3)
+        cols = st.columns(2)
         with cols[0].container(border=True):
             # The only genuine delta on this page: the variant really did move the metric.
             # delta_color is left at "normal" (negative -> red). It was briefly set to
@@ -156,13 +162,17 @@ the calculation the A/B page's minimum-detectable-effect figure demonstrates.
             )
         with cols[1].container(border=True):
             st.metric("p-value", f"{day7.p_value:.5f}")
-            st.caption("significant, and survives Bonferroni correction")
-        with cols[2].container(border=True):
+            st.caption("survives Bonferroni")
+
+        # The confidence interval gets a FULL-WIDTH tile of its own. Its value is the longest
+        # string on this page and it truncated in a third-width column -- and it is also the
+        # strongest piece of evidence here, so the extra room is not a consolation prize.
+        with st.container(border=True):
             st.metric(
-                "95% CI on the difference",
-                f"[{day7.ci_low_pp:+.2f}, {day7.ci_high_pp:+.2f}] pp",
+                "95% confidence interval on the difference",
+                f"{day7.ci_low_pp:+.2f} pp to {day7.ci_high_pp:+.2f} pp",
             )
-            st.caption("entirely below zero — the variant is worse, not merely unproven")
+            st.caption("Entirely below zero — the variant is worse, not merely unproven.")
 
         st.markdown(
             f"""

@@ -26,9 +26,40 @@ import streamlit as st
 from app.components import palette as pal
 
 
-def kpi_tile(label: str, value: str, help_text: str, delta: str | None = None) -> None:
-    """A single KPI number. Not a chart -- a headline figure needs no plot behind it."""
-    st.metric(label=label, value=value, delta=delta, help=help_text, border=True)
+def compact_money(value: float, currency: str = "R$") -> str:
+    """Format a large amount so it FITS a KPI tile: 13496044.67 -> "R$ 13.50M".
+
+    This exists because the exact figure, "R$ 13,496,045", overflowed the tile at a 1280px
+    window and rendered as "R$ 13,49..." -- the headline number on the dashboard was literally
+    unreadable. The exact value is not dropped; it moves to the caption underneath, so nothing
+    is hidden, it is just no longer competing for the same 180 pixels.
+    """
+    magnitude = abs(value)
+    if magnitude >= 1_000_000_000:
+        return f"{currency} {value / 1_000_000_000:,.2f}B"
+    if magnitude >= 1_000_000:
+        return f"{currency} {value / 1_000_000:,.2f}M"
+    if magnitude >= 10_000:
+        return f"{currency} {value / 1_000:,.1f}K"
+    return f"{currency} {value:,.2f}"
+
+
+def kpi_tile(
+    label: str,
+    value: str,
+    help_text: str,
+    delta: str | None = None,
+    caption: str | None = None,
+) -> None:
+    """A single KPI number. Not a chart -- a headline figure needs no plot behind it.
+
+    `caption` carries the exact or qualifying value under an abbreviated headline, so a tile
+    can stay readable at a narrow window without losing precision.
+    """
+    with st.container(border=True):
+        st.metric(label=label, value=value, delta=delta, help=help_text)
+        if caption:
+            st.caption(caption)
 
 
 def funnel_chart(frame: pd.DataFrame) -> go.Figure:
@@ -206,8 +237,14 @@ def ab_comparison_chart(frame: pd.DataFrame, metric_label: str) -> go.Figure:
                     "cornerradius": 4,
                 },
                 text=[f"{row.conversion_rate_pct:.3f}%"],
-                textposition="outside",
-                textfont={"color": pal.INK_PRIMARY, "size": 13},
+                # INSIDE the bar, anchored to its end. An outside label is positioned in
+                # pixels, so at half width it ran past the axis and clipped to "44.228" --
+                # padding the data range only hid the problem at one window size. Inside, the
+                # label cannot leave the plot no matter how narrow the column gets, and these
+                # bars (18-45%) are always long enough to hold it.
+                textposition="inside",
+                insidetextanchor="end",
+                textfont={"color": pal.LABEL_ON_FILL, "size": 13},
                 name=f"{row.variant} ({role})",
                 hovertemplate=(
                     f"<b>{row.variant}</b> ({role})<br>"
@@ -220,13 +257,10 @@ def ab_comparison_chart(frame: pd.DataFrame, metric_label: str) -> go.Figure:
     # No x-axis title: the section heading above the chart already names the metric, and a
     # title here collided with the horizontal legend.
     #
-    # The range is padded to 1.18x the largest bar. Without it, `textposition="outside"` puts
-    # the value label past the end of the axis and the browser clips it -- the labels read
-    # "44.2" instead of "44.228%". The axis still starts at ZERO: truncating it would make a
-    # 0.8 pp difference look like a landslide, which is the exact misreading the statistics
-    # on this page exist to prevent.
-    largest = float(ordered.conversion_rate_pct.max())
-    layout["xaxis"]["range"] = [0, largest * 1.18]
+    # The axis starts at ZERO and is not padded. Truncating it would make a 0.8 pp difference
+    # look like a landslide, which is the exact misreading the statistics on this page exist
+    # to prevent. The value labels sit inside the bars, so nothing needs room past the end.
+    layout["xaxis"]["rangemode"] = "tozero"
     layout["xaxis"]["ticksuffix"] = "%"
     layout["yaxis"]["showgrid"] = False
     layout["yaxis"]["tickfont"] = {"color": pal.INK_SECONDARY, "size": 12}
