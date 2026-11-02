@@ -23,6 +23,8 @@ ALL_VIEWS = [
     "v_customer_first_order",
     "v_cohort_sizes",
     "v_cohort_retention",
+    "v_customer_order_counts",
+    "v_repeat_purchase_summary",
     "v_order_revenue",
     "v_revenue_by_month",
     "v_revenue_running_total",
@@ -263,3 +265,25 @@ def test_exactly_one_control_arm_per_metric(ro_engine):
         ") s WHERE controls <> 1",
     )
     assert bad == 0
+
+
+def test_repeat_purchase_summary_is_internally_consistent(ro_engine):
+    """repeat + single must account for every customer, and the percentage must match."""
+    with ro_engine.connect() as conn:
+        row = conn.execute(text("SELECT * FROM analytics.v_repeat_purchase_summary")).one()
+    assert row.repeat_customers + row.single_purchase_customers == row.total_customers
+    assert row.total_customers == 96_096
+    expected = round(100 * row.repeat_customers / row.total_customers, 2)
+    assert float(row.repeat_pct) == pytest.approx(expected, abs=0.01)
+
+
+def test_dashboard_role_can_read_every_view_it_needs(ro_engine):
+    """The app must never need a privilege it does not have.
+
+    This test exists because an earlier version of app/components/queries.py joined raw.orders
+    directly and failed at runtime with "permission denied for schema raw" (SEC-5). Asserting
+    that every view the dashboard reads is reachable as dashboard_ro turns that class of
+    mistake into a test failure rather than a broken page.
+    """
+    for view in ALL_VIEWS:
+        _scalar(ro_engine, f"SELECT count(*) FROM analytics.{view}")  # noqa: S608

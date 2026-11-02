@@ -1,0 +1,25 @@
+# The chart palette was validated against a specific surface colour, and a contrast or
+# colour-separation result is only meaningful against the surface the chart actually renders
+# on. Streamlit would otherwise follow the viewer's OS dark-mode setting, which would put the
+# light-validated palette on a dark surface. Pinning the light theme keeps what renders and
+# what was validated the same thing. See DECISIONS D-017.
+[theme]
+base = "light"
+backgroundColor = "#f9f9f7"          # page plane
+secondaryBackgroundColor = "#fcfcfb" # chart / card surface -- what the palette was validated against
+textColor = "#0b0b0b"                # primary ink
+primaryColor = "#2a78d6"             # categorical slot 1
+font = "sans serif"
+
+[server]
+headless = true
+# SEC-1: bind to loopback only. Streamlit's default binds to every interface, which published
+# this dashboard on the local network (and, behind a permissive router, beyond it). This is a
+# local demo with no authentication, so it must not be reachable from another machine.
+address = "127.0.0.1"
+# The dashboard is read-only; nobody uploads anything to it.
+enableXsrfProtection = true
+enableCORS = true
+
+[browser]
+gatherUsageStats = false
