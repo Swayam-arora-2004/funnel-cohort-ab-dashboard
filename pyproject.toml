@@ -17,3 +17,12 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "C4", "SIM", "RET"]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"
 markers = ["db: test requires a running PostgreSQL (skipped if unreachable)"]
+# Put the repo root on sys.path so `import src...` and `import app...` resolve.
+#
+# Without this, bare `pytest` fails with "No module named 'src'" while
+# `python -m pytest` works — because the `-m` form inserts the current directory into
+# sys.path and the bare entry point does not. That difference hid a broken `make test`
+# for the whole project: every green run was really `python -m pytest`, and the command
+# written in the Makefile and the README had never actually been executed. CI ran the
+# documented command on the first push and caught it immediately.
+pythonpath = ["."]
